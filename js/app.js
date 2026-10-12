@@ -1,6 +1,7 @@
 import { state, loadState } from './state.js';
 import { register, go, currentScreen, rerender } from './router.js';
 import { initSync } from './sync.js';
+import { watchUpdates, onUpdateReady } from './update.js';
 import { homeScreen } from './screens/home.js';
 import { learnScreen } from './screens/learn.js';
 import { flashScreen } from './screens/flash.js';
@@ -51,9 +52,8 @@ async function main() {
       if (currentScreen().name === 'home') rerender();
     },
   });
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
+  onUpdateReady(() => currentScreen().name === 'home' && rerender());
+  watchUpdates();
 }
 
 main();

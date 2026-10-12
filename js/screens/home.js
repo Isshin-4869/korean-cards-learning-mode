@@ -3,6 +3,7 @@ import { state, save, cardsInRange, currentRangeKey, rangeLabel } from '../state
 import { TYPES } from '../cards.js';
 import { summarize, rec, MASTERED } from '../progress.js';
 import { go, rerender } from '../router.js';
+import { updateReady } from '../update.js';
 
 let rangeMode = false;
 let anchor = null;
@@ -66,6 +67,7 @@ export function homeScreen() {
   return h('div', null,
     h('div', { class: 'scroll' },
       h('div', { class: 'top' }, h('h1', { class: 'grow' }, '韓国語カード'), iconButton('gear', '設定', () => go('settings'))),
+      updateReady() ? h('div', { class: 'row', style: 'margin-bottom:8px' }, h('span', { class: 'grow small' }, '新しいバージョンがあります'), h('button', { class: 'btn text', onClick: () => location.reload() }, '更新')) : null,
       h('div', { class: 'muted small' }, `${rangeLabel()} · ${pool.length}枚`),
       h('div', { class: 'stats' },
         h('div', null, h('b', { class: 'acc' }, sum.mastered), h('span', { class: 'muted small' }, '習得')),

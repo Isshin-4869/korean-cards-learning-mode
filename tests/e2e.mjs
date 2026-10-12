@@ -21,12 +21,14 @@ const byId = new Map(cards.map((c) => [c.id, c]));
 
 // ---- 静的サーバー ----
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.md': 'text/markdown; charset=utf-8', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.json': 'application/json' };
+let swBump = false; // true にすると、新しい版を公開したのと同じ状態になる
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (p.endsWith('/')) p += 'index.html';
   const f = path.join(root, p);
   fs.readFile(f, (err, buf) => {
     if (err || !f.startsWith(root)) return res.writeHead(404).end();
+    if (swBump && p === '/sw.js') buf = Buffer.concat([buf, Buffer.from('\n// bump\n')]);
     res.writeHead(200, { 'content-type': types[path.extname(f)] ?? 'application/octet-stream' }).end(buf);
   });
 });
@@ -337,6 +339,17 @@ await page.waitForSelector('.prompt[data-card]');
 await shot('offline-learn');
 log('オフラインで起動・学習');
 await ctx.setOffline(false);
+
+// ---- アプリの更新: 新しい版を受け取ったらホームに知らせ、押したときだけ再読み込み ----
+await page.getByRole('button', { name: '閉じる' }).click();
+swBump = true;
+await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r.update()));
+await page.getByText('新しいバージョンがあります').waitFor({ timeout: 10000 });
+await shot('update-banner');
+await btn('更新').click();
+await page.waitForSelector('.ltile');
+assert.equal(await page.getByText('新しいバージョンがあります').count(), 0);
+log('更新の知らせ → 更新ボタンで再読み込み');
 
 // ---- 同期: Firebase をまねたサーバーで、端末1で学習した進捗が端末2に届く ----
 const fakeDb = new Map();
