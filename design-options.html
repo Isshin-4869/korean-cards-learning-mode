@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>レイアウト案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* ---- 見比べ用ページ自体のスタイル ---- */
+  html { font: -apple-system-body; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Apple SD Gothic Neo", sans-serif; }
+  body { margin: 0; background: #E4E3E0; color: #1B1C1E; }
+  .tools { position: sticky; top: 0; z-index: 10; background: #E4E3E0; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .tools button { font: inherit; font-size: 0.9375rem; min-height: 44px; min-width: 44px; padding: 0 14px; border: 0; border-radius: 10px; background: #D3D2CE; color: inherit; cursor: pointer; }
+  .tools button[aria-pressed="true"] { background: #1B1C1E; color: #fff; }
+  .tools .sp { flex: 1; }
+  .desc { max-width: 1100px; padding: 0 16px 8px; font-size: 0.9375rem; line-height: 1.6; }
+  .desc h2 { font-size: 1.125rem; margin: 4px 0; }
+  .desc ul { margin: 4px 0; padding-left: 1.2em; }
+  .stage { display: flex; flex-wrap: wrap; gap: 24px; padding: 8px 16px 48px; align-items: flex-start; }
+  .phone { width: 390px; max-width: 100%; }
+  .phone > .cap { font-size: 0.8125rem; color: #55565A; margin: 0 0 6px 4px; }
+
+  /* ---- アプリ画面のトークン ---- */
+  .screen {
+    --bg: #F4F3EF; --fg: #1C1D1F; --fg2: #66676B; --sep: #DAD8D2; --fill: #E7E5E0; --fill-press: #DCDAD4;
+    --accent: #2F57C9; --accent-weak: rgba(47, 87, 201, 0.35); --on-accent: #fff;
+    --ok: #1C7F46; --ok-bg: #DDEFE3; --ng: #B8322F; --ng-bg: #F6E0DE;
+    --sheet: #FFFFFF; --shape: rgba(255, 255, 255, 0.12); --kbd: #D1D3D9;
+  }
+  .dark .screen {
+    --bg: #161719; --fg: #ECECEE; --fg2: #9C9DA2; --sep: #2E2F33; --fill: #25262A; --fill-press: #2F3035;
+    --accent: #87A2FF; --accent-weak: rgba(135, 162, 255, 0.35); --on-accent: #0F1630;
+    --ok: #5CC88A; --ok-bg: #18301F; --ng: #FF7B72; --ng-bg: #3A1D1C;
+    --sheet: #222327; --shape: rgba(0, 0, 0, 0.09); --kbd: #2B2C30;
+  }
+  .screen {
+    position: relative; width: 390px; max-width: 100%; height: 844px; overflow: hidden; border-radius: 36px;
+    background: var(--bg); color: var(--fg); display: flex; flex-direction: column;
+    font-size: 1.0625rem; line-height: 1.5;
+  }
+  .status { height: 47px; flex: none; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 28px 6px; font-size: 0.9375rem; font-weight: 600; }
+  .homebar { height: 34px; flex: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
+  .homebar::after { content: ""; width: 134px; height: 5px; border-radius: 3px; background: var(--fg); opacity: .9; }
+  .scroll { flex: 1; overflow: auto; position: relative; }
+  .pad { padding: 0 16px; }
+  .ko { font-family: "Gowun Batang", "Apple SD Gothic Neo", -apple-system, sans-serif; }
+  .muted { color: var(--fg2); }
+  .small { font-size: 0.8125rem; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .grow { flex: 1; min-width: 0; }
+
+  /* ボタン */
+  .btn { font: inherit; border: 0; cursor: pointer; min-height: 44px; border-radius: 14px; color: inherit; background: var(--fill); padding: 0 16px; }
+  .btn.primary { background: var(--accent); color: var(--on-accent); font-weight: 600; min-height: 56px; width: 100%; font-size: 1.0625rem; }
+  .btn.text { background: none; color: var(--accent); }
+  .btn.icon { width: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; color: var(--fg2); }
+  .btn:active { background: var(--fill-press); }
+  .btn.primary:active { filter: brightness(.92); }
+
+  /* 進捗バー（習得＝アクセント、学習中＝アクセントの淡色、未学習＝面の色） */
+  .bar { height: 6px; border-radius: 3px; background: var(--fill); display: flex; overflow: hidden; }
+  .bar > .m { background: var(--accent); }
+  .bar > .l { background: var(--accent-weak); }
+  .seg { display: flex; gap: 4px; }
+  .seg > i { flex: 1; height: 4px; border-radius: 2px; background: var(--fill); }
+  .seg > i.on { background: var(--accent); }
+
+  /* 区切り線1本の一覧 */
+  .list > * { border-bottom: 1px solid var(--sep); }
+  .list > *:last-child { border-bottom: 0; }
+  .lrow { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 0; }
+
+  /* 選択肢（背景色の差だけ） */
+  .choice { font: inherit; width: 100%; text-align: left; border: 0; background: var(--fill); color: var(--fg); border-radius: 14px; min-height: 56px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .choice .k { color: var(--fg2); font-size: 0.8125rem; width: 1.2em; text-align: center; }
+  .choice.ok { background: var(--ok-bg); color: var(--ok); font-weight: 600; }
+  .choice.ng { background: var(--ng-bg); color: var(--ng); }
+  .choice.dim { opacity: .45; }
+  .choices { display: grid; gap: 10px; }
+  .choices.grid2 { grid-template-columns: 1fr 1fr; }
+  .choices.grid2 .choice { min-height: 96px; align-items: flex-start; }
+
+  .field { font: inherit; font-size: 1.125rem; width: 100%; box-sizing: border-box; min-height: 52px; border: 0; border-radius: 14px; background: var(--fill); color: var(--fg); padding: 0 14px; }
+  .field:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .kbd { flex: none; height: 291px; background: var(--kbd); display: flex; align-items: center; justify-content: center; color: var(--fg2); font-size: 0.8125rem; }
+
+  .chip { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border-radius: 8px; background: var(--fill); font-size: 0.8125rem; color: var(--fg2); }
+  .tag { font-size: 0.75rem; color: var(--fg2); }
+  .speak { width: 44px; height: 44px; border-radius: 22px; border: 0; background: var(--fill); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+
+  /* 下から出るフィードバックシート（本当に浮いているので影を付ける） */
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--sheet); border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.12); padding: 18px 16px 0; }
+  .dark .sheet { box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.5); }
+  .verdict { font-weight: 700; font-size: 1rem; }
+  .verdict.ok { color: var(--ok); }
+  .verdict.ng { color: var(--ng); }
+
+  /* 抽象図形（ホームのみ・タップを拾わない） */
+  .shapes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+  .shapes > * { position: absolute; }
+  .shapes .q { width: 220px; height: 220px; border-bottom-left-radius: 220px; background: var(--shape); right: 0; top: 0; }
+  .shapes .ring { width: 120px; height: 120px; border-radius: 50%; border: 18px solid var(--shape); left: -50px; top: 300px; }
+  .shapes .dots { width: 120px; height: 80px; right: 24px; top: 250px; background-image: radial-gradient(var(--shape) 2.5px, transparent 3px); background-size: 16px 16px; }
+  .layer { position: relative; z-index: 1; }
+
+  /* 課のタイル（案2） */
+  .lgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .lgrid > div { background: var(--fill); border-radius: 12px; min-height: 64px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; }
+  .lgrid > div.sel { background: var(--accent); color: var(--on-accent); }
+  .lgrid > div.sel .muted { color: var(--on-accent); opacity: .8; }
+  .stat b { display: block; font-size: 1.75rem; line-height: 1.1; }
+
+  /* 問題面（案4）：背景色の差だけで面を作る */
+  .face { background: var(--fill); border-radius: 20px; padding: 20px; }
+  .face .speak { background: var(--bg); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .btn, .choice { transition: background-color .2s, filter .2s; }
+  }
+</style>
+</head>
+<body>
+<div class="tools" role="toolbar">
+  <button data-opt="1">案1</button><button data-opt="2">案2</button><button data-opt="3">案3</button><button data-opt="4">案4</button><button data-opt="5">案5</button>
+  <span class="sp"></span>
+  <button data-theme="light">ライト</button><button data-theme="dark">ダーク</button>
+</div>
+<div class="desc" id="desc"></div>
+<div class="stage" id="stage"></div>
+
+<script>
+// ---- 実データ（data/cards.md から抜き出し。課ごとの枚数は実数、進捗はダミー） ----
+const LESSONS = [
+  ['第1課', 9, 100, 0], ['第2課', 26, 88, 8], ['第3課', 19, 74, 16], ['第4課', 35, 51, 23], ['第5課', 51, 22, 30],
+  ['第6課', 87, 6, 14], ['第7課', 107, 0, 4], ['第8課', 100, 0, 0], ['第9課', 153, 0, 0], ['第10課', 165, 0, 0],
+  ['第11課', 123, 0, 0], ['第12課', 121, 0, 0], ['第13課', 96, 0, 0], ['第14課', 105, 0, 0], ['第15課', 121, 0, 0],
+  ['第16課', 115, 0, 0], ['第17課', 102, 0, 0], ['第18課', 114, 0, 0], ['第19課', 95, 0, 0], ['第20課', 85, 0, 0],
+  ['第21課', 126, 0, 0], ['第22課', 77, 0, 0], ['会話表現', 82, 10, 5],
+];
+const SELECTED = new Set(['第1課', '第2課', '第3課', '第4課', '第5課']);
+const MC = { term: '기다리다', lesson: '第2課 · 単語', answer: '待つ', choices: ['よく、頻繁に', '待つ', '席', '未来'] };
+const WR = { prompt: '学校の横にカフェがあります。', lesson: '第7課 · 文法', answer: '학교 옆에 카페가 있어요.', typed: '학교 옆에 카페가 없어요' };
+const RANGE = { label: '第1〜5課', types: '単語・文法・会話表現', count: 140, m: 54, l: 22 };
+
+const OPTIONS = {
+  1: {
+    name: '案1 スタンダード（縦一列・下にシート）',
+    points: [
+      'ホーム：上に範囲と全体の進捗、中ほどに課の一覧（区切り線1本）、画面下に「学習を続ける」と他の4モード。',
+      '出題：問題は上半分、4択は縦一列で画面下に寄せる。回答後は下からシートが出て「続ける」。',
+      '向いている点：いちばん素直で、長い定義（文法の説明）も折り返して読める。',
+    ],
+  },
+  2: {
+    name: '案2 タイル（2×2の選択肢・課をタイルで選ぶ）',
+    points: [
+      'ホーム：習得・学習中・未学習の数を大きく出し、課は4列のタイル（タップで範囲に入れる／外す）。',
+      '出題：4択は2×2のタイル。回答後はシートを出さず、タイルの色と下の「続ける」だけで示す（影なし）。',
+      '向いている点：短い単語は速く押せる。弱い点：長い文の選択肢は窮屈になる。',
+    ],
+  },
+  3: {
+    name: '案3 ミニマル（要素を最小限・左揃え）',
+    points: [
+      'ホーム：大きな習得率の数字と1本のバー、モードは文字だけの行。課の一覧は範囲選択画面に移す。',
+      '出題：問題を左揃えで本文のように置く。回答後のシートに、注記や課も含めたカードの全情報を出す。',
+      'ホームにだけ抽象図形（四分円・リング・ドット）を薄く置いた例。気づかない程度の濃さ。',
+    ],
+  },
+  4: {
+    name: '案4 問題面（問題を面で囲い、その場で答えを出す）',
+    points: [
+      'ホーム：モードを大きな行で並べ、その下に課の一覧。上に選択中の範囲をチップで表示。',
+      '出題：問題を背景色の差だけの「面」に置き、回答後はその面の中に答えを出す（シートなし）。',
+      '向いている点：見る場所が1か所に固定される。弱い点：面の分だけ選択肢が下に押される。',
+    ],
+  },
+  5: {
+    name: '案5 親指優先（操作も見出しも下に寄せる）',
+    points: [
+      'ホーム：上は空けておき、範囲・モード・開始ボタンをすべて下半分に置く。課の一覧は「範囲」から。',
+      '出題：閉じるボタンと進捗も画面下に移し、上半分は問題だけ。片手で全操作が届く。',
+      '弱い点：iOS の一般的な配置（閉じるは左上）と違うので慣れが要る。',
+    ],
+  },
+};
+
+// ---- 部品 ----
+const icon = {
+  close: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  speak: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>',
+  gear: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 4.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 19.4 9H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 2z"/></svg>',
+  chev: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>',
+};
+const MODES = [['単語カード', 'めくって確認'], ['テスト', '4形式から選んで腕試し'], ['スペル', '聞いてハングルで書く'], ['マッチ', '6組をタイムアタック']];
+const pct = (m, l) => `<div class="bar"><div class="m" style="width:${m}%"></div><div class="l" style="width:${l}%"></div></div>`;
+const status = () => '<div class="status"><span>9:41</span><span>●●● ▮</span></div>';
+const homebar = () => '<div class="homebar"></div>';
+const segBar = (done, n = 7) => `<div class="seg grow">${Array.from({ length: n }, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</div>`;
+const learnHeader = (done = 2) => `<div class="pad row" style="min-height:52px"><button class="btn icon" aria-label="閉じる">${icon.close}</button>${segBar(done)}<span class="muted small" style="width:2.6em;text-align:right">${done + 1}/7</span></div>`;
+const choicesHTML = (state, cls = '') => `<div class="choices ${cls}">${MC.choices.map((c, i) => {
+  let k = '';
+  if (state === 'ok') k = c === MC.answer ? 'ok' : 'dim';
+  return `<button class="choice ${k}"><span class="k">${i + 1}</span><span>${c}</span></button>`;
+}).join('')}</div>`;
+const mcPrompt = (align = 'center') => `<div style="text-align:${align}"><div class="tag">${MC.lesson}</div><div class="ko" style="font-size:2.5rem;line-height:1.3;margin:8px 0 12px">${MC.term}</div><button class="speak" aria-label="読み上げ">${icon.speak}</button></div>`;
+const wrPrompt = (align = 'left') => `<div style="text-align:${align}"><div class="tag">${WR.lesson} · 韓国語で書く</div><div style="font-size:1.375rem;line-height:1.5;margin-top:8px;font-weight:600">${WR.prompt}</div></div>`;
+const wrInput = (val = '학교 옆에 카페가 ') => `<div class="row"><input class="field grow ko" value="${val}" aria-label="回答"><button class="btn" style="background:var(--accent);color:var(--on-accent);min-height:52px;font-weight:600">回答</button></div>`;
+const dontKnow = () => '<button class="btn text" style="width:100%">分からない</button>';
+const wrongSheetBody = () => `
+  <div class="row"><span class="verdict ng">不正解</span><span class="grow"></span><button class="btn text" style="min-height:44px">正解にする</button></div>
+  <div class="muted small" style="margin-top:6px">正解</div>
+  <div class="row"><div class="ko grow" style="font-size:1.5rem;line-height:1.4">${WR.answer}</div><button class="speak" aria-label="読み上げ">${icon.speak}</button></div>
+  <div class="muted small" style="margin-top:10px">あなたの回答</div>
+  <div class="ko" style="font-size:1.125rem;color:var(--ng)">${WR.typed}</div>`;
+const okSheetBody = () => `<div class="row" style="min-height:28px"><span class="verdict ok">正解</span><span class="muted">${MC.term} ＝ ${MC.answer}</span></div>`;
+const lessonRows = () => `<div class="list">${LESSONS.map(([n, t, m, l]) => `
+  <div class="lrow"><span style="width:5.2em">${n}</span><div class="grow">${pct(m, l)}</div><span class="muted small" style="width:3.2em;text-align:right">${m}%</span><span class="muted small" style="width:3em;text-align:right">${t}枚</span></div>`).join('')}</div>`;
+const screen = (inner) => `<div class="screen">${status()}${inner}</div>`;
+
+// ---- 案ごとの画面 ----
+const R = {};
+
+// 案1
+R[1] = {
+  home: () => screen(`
+    <div class="scroll pad">
+      <div class="row" style="min-height:52px"><span style="font-size:1.375rem;font-weight:700" class="grow">韓国語カード</span><button class="btn icon" aria-label="設定">${icon.gear}</button></div>
+      <button class="btn" style="width:100%;text-align:left;padding:12px 16px;margin-top:4px"><div class="row"><div class="grow"><div>${RANGE.label} · ${RANGE.count}枚</div><div class="muted small">${RANGE.types}</div></div><span class="muted">${icon.chev}</span></div></button>
+      <div style="margin:16px 0 4px" class="row"><span class="grow">習得 ${RANGE.m}%</span><span class="muted small">学習中 ${RANGE.l}%</span></div>
+      ${pct(RANGE.m, RANGE.l)}
+      <div class="muted small" style="margin:20px 0 4px">課ごとの習得率</div>
+      ${lessonRows()}
+      <div style="height:16px"></div>
+    </div>
+    <div class="pad" style="padding-top:12px">
+      <button class="btn primary">学習を続ける</button>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px">${MODES.map(([m]) => `<button class="btn" style="padding:0 4px;font-size:0.875rem;min-height:48px">${m}</button>`).join('')}</div>
+    </div>${homebar()}`),
+  mc: () => screen(`${learnHeader()}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${mcPrompt()}</div>
+    <div class="pad">${choicesHTML()}<div style="margin-top:4px">${dontKnow()}</div></div>${homebar()}`),
+  wr: () => screen(`${learnHeader(3)}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${wrPrompt('center')}</div>
+    <div class="pad" style="padding-bottom:8px">${wrInput()}<div style="margin-top:4px">${dontKnow()}</div></div>
+    <div class="kbd">iOS キーボード（約291px）</div>`),
+  wrong: () => screen(`${learnHeader(3)}
+    <div class="pad" style="padding-top:40px">${wrPrompt('center')}</div>
+    <div class="sheet">${wrongSheetBody()}<div style="margin-top:16px"><button class="btn primary">続ける</button></div>${homebar()}</div>`),
+  ok: () => screen(`${learnHeader()}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${mcPrompt()}</div>
+    <div class="pad" style="padding-bottom:178px">${choicesHTML('ok')}</div>
+    <div class="sheet">${okSheetBody()}<div style="margin-top:12px"><button class="btn primary">続ける</button></div>${homebar()}</div>`),
+};
+
+// 案2
+R[2] = {
+  home: () => screen(`
+    <div class="scroll pad">
+      <div class="row" style="min-height:52px"><span style="font-size:1.375rem;font-weight:700" class="grow">韓国語カード</span><button class="btn icon" aria-label="設定">${icon.gear}</button></div>
+      <div class="row stat" style="margin:8px 0 12px;gap:24px">
+        <div><b style="color:var(--accent)">76</b><span class="muted small">習得</span></div>
+        <div><b>31</b><span class="muted small">学習中</span></div>
+        <div><b>33</b><span class="muted small">未学習</span></div>
+      </div>
+      ${pct(RANGE.m, RANGE.l)}
+      <div class="row" style="margin:20px 0 8px"><span class="muted small grow">課（タップで範囲に入れる）</span><span class="chip">単語・文法・会話</span></div>
+      <div class="lgrid">${LESSONS.map(([n, t, m]) => `<div class="${SELECTED.has(n) ? 'sel' : ''}"><span style="font-size:0.9375rem">${n.replace('第', '').replace('課', '')}${n === '会話表現' ? '' : '課'}</span><span class="muted small">${m}%</span></div>`).join('')}</div>
+      <div style="height:16px"></div>
+    </div>
+    <div class="pad" style="padding-top:12px">
+      <button class="btn primary">学習 · ${RANGE.count}枚</button>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px">${MODES.map(([m]) => `<button class="btn" style="padding:0 4px;font-size:0.875rem;min-height:48px">${m}</button>`).join('')}</div>
+    </div>${homebar()}`),
+  mc: () => screen(`${learnHeader()}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${mcPrompt()}</div>
+    <div class="pad">${choicesHTML('', 'grid2')}<div style="margin-top:4px">${dontKnow()}</div></div>${homebar()}`),
+  wr: () => R[1].wr(),
+  wrong: () => screen(`${learnHeader(3)}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${wrPrompt('center')}</div>
+    <div class="pad">
+      <div style="background:var(--ng-bg);border-radius:14px;padding:12px 16px"><div class="small" style="color:var(--ng)">あなたの回答</div><div class="ko" style="font-size:1.125rem;color:var(--ng)">${WR.typed}</div></div>
+      <div style="background:var(--ok-bg);border-radius:14px;padding:12px 16px;margin-top:8px"><div class="small" style="color:var(--ok)">正解</div><div class="row"><div class="ko grow" style="font-size:1.375rem;color:var(--ok)">${WR.answer}</div><button class="speak">${icon.speak}</button></div></div>
+      <div class="row" style="margin-top:8px"><button class="btn text">正解にする</button></div>
+      <button class="btn primary">続ける</button>
+    </div>${homebar()}`),
+  ok: () => screen(`${learnHeader()}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${mcPrompt()}</div>
+    <div class="pad">${choicesHTML('ok', 'grid2')}<div style="margin-top:12px"><button class="btn primary">続ける</button></div></div>${homebar()}`),
+};
+
+// 案3
+R[3] = {
+  home: () => screen(`
+    <div class="shapes"><div class="q"></div><div class="ring"></div><div class="dots"></div></div>
+    <div class="scroll pad layer">
+      <div class="row" style="min-height:52px"><span class="grow"></span><button class="btn icon" aria-label="設定">${icon.gear}</button></div>
+      <div class="muted" style="margin-top:24px">${RANGE.label} · ${RANGE.count}枚</div>
+      <div style="font-size:3.5rem;font-weight:700;line-height:1.1;margin:4px 0 12px">${RANGE.m}<span style="font-size:1.5rem">%</span></div>
+      ${pct(RANGE.m, RANGE.l)}
+      <div class="muted small" style="margin-top:8px">習得 ${RANGE.m}% · 学習中 ${RANGE.l}% · 未学習 ${100 - RANGE.m - RANGE.l}%</div>
+      <button class="btn text" style="padding:0;margin-top:8px">範囲と課ごとの習得率</button>
+      <div class="list" style="margin-top:28px">${MODES.map(([m, d]) => `<div class="lrow" style="min-height:60px"><div class="grow"><div>${m}</div><div class="muted small">${d}</div></div><span class="muted">${icon.chev}</span></div>`).join('')}</div>
+    </div>
+    <div class="pad layer" style="padding-top:12px"><button class="btn primary">学習を続ける</button></div>${homebar()}`),
+  mc: () => screen(`${learnHeader()}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${mcPrompt('left')}</div>
+    <div class="pad">${choicesHTML()}<div style="margin-top:4px">${dontKnow()}</div></div>${homebar()}`),
+  wr: () => screen(`${learnHeader(3)}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${wrPrompt('left')}</div>
+    <div class="pad" style="padding-bottom:8px">${wrInput()}<div style="margin-top:4px">${dontKnow()}</div></div>
+    <div class="kbd">iOS キーボード（約291px）</div>`),
+  wrong: () => screen(`${learnHeader(3)}
+    <div class="pad" style="padding-top:32px">${wrPrompt('left')}</div>
+    <div class="sheet">${wrongSheetBody()}
+      <div class="list" style="margin-top:14px">
+        <div class="lrow small muted"><span class="grow">課・種別</span><span>${WR.lesson}</span></div>
+        <div class="lrow small muted"><span class="grow">このカードの記述の正解回数</span><span>0回（リセット）</span></div>
+      </div>
+      <div style="margin-top:8px"><button class="btn primary">続ける</button></div>${homebar()}</div>`),
+  ok: () => R[1].ok(),
+};
+
+// 案4
+R[4] = {
+  home: () => screen(`
+    <div class="scroll pad">
+      <div class="row" style="min-height:52px"><span style="font-size:1.375rem;font-weight:700" class="grow">韓国語カード</span><button class="btn icon" aria-label="設定">${icon.gear}</button></div>
+      <div class="row" style="flex-wrap:wrap;gap:6px;margin:4px 0 16px"><span class="chip">${RANGE.label}</span><span class="chip">単語</span><span class="chip">文法</span><span class="chip">会話表現</span><button class="btn text small" style="min-height:32px">変更</button></div>
+      <div style="display:grid;gap:8px">
+        <button class="btn primary" style="text-align:left;padding:12px 16px;min-height:72px"><div>学習</div><div style="font-weight:400;font-size:0.875rem;opacity:.85">次の7語 · 習得 ${RANGE.m}%</div></button>
+        ${MODES.map(([m, d]) => `<button class="btn" style="text-align:left;padding:10px 16px;min-height:60px"><div>${m}</div><div class="muted small">${d}</div></button>`).join('')}
+      </div>
+      <div class="muted small" style="margin:24px 0 4px">課ごとの習得率</div>
+      ${lessonRows()}
+    </div>${homebar()}`),
+  mc: () => screen(`${learnHeader()}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;padding-bottom:16px"><div class="face" style="flex:1;display:flex;flex-direction:column;justify-content:center">${mcPrompt()}</div></div>
+    <div class="pad">${choicesHTML()}<div style="margin-top:4px">${dontKnow()}</div></div>${homebar()}`),
+  wr: () => screen(`${learnHeader(3)}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;padding-bottom:12px"><div class="face" style="flex:1;display:flex;flex-direction:column;justify-content:center">${wrPrompt('center')}</div></div>
+    <div class="pad" style="padding-bottom:8px">${wrInput()}<div style="margin-top:4px">${dontKnow()}</div></div>
+    <div class="kbd">iOS キーボード（約291px）</div>`),
+  wrong: () => screen(`${learnHeader(3)}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;padding-bottom:16px"><div class="face" style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:20px">
+      ${wrPrompt('left')}
+      <div><div class="row"><span class="verdict ng grow">不正解</span><button class="btn text">正解にする</button></div>
+      <div class="ko" style="font-size:1.125rem;color:var(--ng);text-decoration:line-through">${WR.typed}</div>
+      <div class="row" style="margin-top:6px"><div class="ko grow" style="font-size:1.5rem">${WR.answer}</div><button class="speak" style="background:var(--bg)">${icon.speak}</button></div></div>
+    </div></div>
+    <div class="pad"><button class="btn primary">続ける</button></div>${homebar()}`),
+  ok: () => screen(`${learnHeader()}
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;padding-bottom:16px"><div class="face" style="flex:1;display:flex;flex-direction:column;justify-content:center">${mcPrompt()}<div class="verdict ok" style="text-align:center;margin-top:12px">正解</div></div></div>
+    <div class="pad">${choicesHTML('ok')}<div style="margin-top:12px"><button class="btn primary">続ける</button></div></div>${homebar()}`),
+};
+
+// 案5
+const footHeader = (done = 2) => `<div class="pad row" style="min-height:52px"><button class="btn icon" aria-label="閉じる">${icon.close}</button>${segBar(done)}<span class="muted small" style="width:2.6em;text-align:right">${done + 1}/7</span></div>`;
+R[5] = {
+  home: () => screen(`
+    <div class="shapes"><div class="q"></div><div class="dots" style="top:120px;left:24px;right:auto"></div></div>
+    <div style="flex:1"></div>
+    <div class="pad layer">
+      <button class="btn" style="width:100%;text-align:left;padding:12px 16px"><div class="row"><div class="grow"><div>${RANGE.label} · ${RANGE.count}枚</div><div class="muted small">習得 ${RANGE.m}% · 学習中 ${RANGE.l}%</div></div><span class="muted">${icon.chev}</span></div></button>
+      <div style="margin:10px 0 16px">${pct(RANGE.m, RANGE.l)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${MODES.map(([m, d]) => `<button class="btn" style="text-align:left;padding:10px 14px;min-height:72px"><div>${m}</div><div class="muted small">${d}</div></button>`).join('')}</div>
+      <div style="margin-top:8px"><button class="btn primary" style="min-height:64px">学習を続ける</button></div>
+      <div class="row" style="justify-content:space-between;margin-top:4px"><button class="btn text">範囲と課</button><button class="btn icon" aria-label="設定">${icon.gear}</button></div>
+    </div>${homebar()}`),
+  mc: () => screen(`
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${mcPrompt()}</div>
+    <div class="pad">${choicesHTML()}<div style="margin-top:4px">${dontKnow()}</div></div>${footHeader()}${homebar()}`),
+  wr: () => screen(`
+    <div class="pad row" style="min-height:52px"><button class="btn icon" aria-label="閉じる">${icon.close}</button>${segBar(3)}</div>
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:20px">${wrPrompt('left')}</div>
+    <div class="pad" style="padding-bottom:8px">${wrInput()}<div style="margin-top:4px">${dontKnow()}</div></div>
+    <div class="kbd">iOS キーボード（約291px）</div>`),
+  wrong: () => screen(`
+    <div class="pad" style="padding-top:60px">${wrPrompt('left')}</div>
+    <div class="sheet">${wrongSheetBody()}<div style="margin-top:16px"><button class="btn primary">続ける</button></div>${homebar()}</div>`),
+  ok: () => screen(`
+    <div class="pad" style="flex:1;display:flex;flex-direction:column;justify-content:center">${mcPrompt()}</div>
+    <div class="pad">${choicesHTML('ok')}<div class="row" style="margin-top:12px"><span class="verdict ok">正解</span><span class="muted">${MC.term} ＝ ${MC.answer}</span></div><div style="margin-top:8px"><button class="btn primary">続ける</button></div></div>${footHeader()}${homebar()}`),
+};
+
+const SCREENS = [['home', 'ホーム'], ['mc', '学習：4択'], ['wr', '学習：記述（キーボード表示中）'], ['wrong', '回答後：記述で不正解'], ['ok', '回答後：4択で正解（控えめ）']];
+
+function render(opt) {
+  const o = OPTIONS[opt];
+  document.getElementById('desc').innerHTML = `<h2>${o.name}</h2><ul>${o.points.map((p) => `<li>${p}</li>`).join('')}</ul><div class="small" style="color:#55565A">進捗の数字はダミー。課ごとの枚数とカードは実データ。</div>`;
+  document.getElementById('stage').innerHTML = SCREENS.map(([k, cap]) => `<section class="phone"><p class="cap">${cap}</p>${R[opt][k]()}</section>`).join('');
+  document.querySelectorAll('[data-opt]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.opt === String(opt))));
+}
+function setTheme(t) {
+  document.body.classList.toggle('dark', t === 'dark');
+  document.querySelectorAll('[data-theme]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.theme === t)));
+}
+document.querySelectorAll('[data-opt]').forEach((b) => b.addEventListener('click', () => render(Number(b.dataset.opt))));
+document.querySelectorAll('[data-theme]').forEach((b) => b.addEventListener('click', () => setTheme(b.dataset.theme)));
+render(1);
+setTheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+</script>
+</body>
+</html>
