@@ -5,7 +5,7 @@ import { Store } from './store.js';
 import { parseCardsMarkdown, lessonsOf, TYPES } from './cards.js';
 import { Deck, rangeKey } from './deck.js';
 
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.0.1';
 export const BACKUP_FORMAT = 'korean-cards-backup';
 
 export const DEFAULT_SETTINGS = {
