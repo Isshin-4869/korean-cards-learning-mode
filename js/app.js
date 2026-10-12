@@ -1,4 +1,4 @@
-import { state, loadState, onChange } from './state.js';
+import { state, loadState, onChange, save } from './state.js';
 import { register, go, currentScreen, rerender } from './router.js';
 import { initSync } from './sync.js';
 import { watchUpdates, onUpdateReady } from './update.js';
@@ -11,6 +11,8 @@ import { testScreen } from './screens/test.js';
 import { spellScreen } from './screens/spell.js';
 import { matchScreen } from './screens/match.js';
 import { settingsScreen } from './screens/settings.js';
+import { startScreen } from './screens/start.js';
+import { recordAnswer } from './streak.js';
 import { applyTheme } from './theme.js';
 
 register('home', homeScreen);
@@ -20,6 +22,7 @@ register('test', testScreen);
 register('spell', spellScreen);
 register('match', matchScreen);
 register('settings', settingsScreen);
+register('start', startScreen);
 
 // キーボードが出ても入力欄と回答ボタンが隠れないよう、表示領域の高さに合わせる
 function trackViewport() {
@@ -58,6 +61,12 @@ async function main() {
   });
   // 学習したら、その日のリマインダーを止めるよう通知サーバーに知らせる（1日1回）
   onChange((key) => key === 'progress' && reportActivity());
+  // 答えた・めくったら、その日を「学習した日」にする（連続記録）
+  onChange((key) => {
+    if (key !== 'progress' && key !== 'flash') return;
+    recordAnswer(state.days);
+    save.days();
+  });
   // アイコンのバッジとウィジェット用の要約
   initWidget();
   onUpdateReady(() => currentScreen().name === 'home' && rerender());

@@ -9,7 +9,7 @@
 //     （ロック画面は、ロック画面を長押し →「カスタマイズ」→ ウィジェットの枠 → Scriptable）
 //  6. 追加したウィジェットを長押し →「ウィジェットを編集」→ Script に「韓国語カード」を選ぶ
 //
-// 表示するのは、アプリで選んでいる範囲の惑星・習得率・学習中の枚数・今日学習した枚数。
+// 表示するのは、連続記録・今週学習した日・今日の復習の残り枚数・記憶の予測（7 日分）。
 // アプリで学習してから数分後に届き、ウィジェットの更新は iOS の都合で 15 分〜1 時間ほどおきになる。
 
 const STATS_URL = "ここにアプリの『ウィジェットに貼る URL』を入れる";
@@ -25,111 +25,17 @@ const APP_URL = "https://isshin-4869.github.io/korean-cards-learning-mode/";
 const TAP = "none";
 const SHORTCUT_NAME = "韓国語カード";
 
-// ---- 配色（アプリのダークテーマと同じ） ----
-const BG = new Color("#0E1020");
-const TEXT = new Color("#ECEAF4");
-const SUB = new Color("#9A98AE");
-const ACCENT = new Color("#F2C94C");
+// ---- 配色（アプリのライト・ダークと同じ。アクセントは 1 色） ----
+const LIGHT = { bg: "#F4F3EF", text: "#1C1D1F", sub: "#66676B", fill: "#E7E5E0", accent: "#2F57C9" };
+const DARK = { bg: "#161719", text: "#ECECEE", sub: "#9C9DA2", fill: "#25262A", accent: "#87A2FF" };
+const color = (k) => Color.dynamic(new Color(LIGHT[k]), new Color(DARK[k]));
+const BG = color("bg"), TEXT = color("text"), SUB = color("sub"), FILL = color("fill"), ACCENT = color("accent");
+// グラフは画像なので、描くときの外観で色を決める
+let isDark = false;
+try { isDark = Device.isUsingDarkAppearance(); } catch (e) {}
+const PAL = isDark ? DARK : LIGHT;
 
-const STAGES = ["ちり", "岩の星", "マグマの星", "海のある星", "緑と雲の星", "環のある星（完成）"];
-const NEXT_AT = [1, 25, 50, 75, 100]; // 次の段階になる習得率（段階 0 → 1 は 1 枚でも学習すれば）
-
-// ---- ドット絵の惑星（js/planet.js の drawPlanet をそのまま移したもの。変えるときは両方） ----
-const seedOf = (name) => [...name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % 1000 + 1;
-
-function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function noise(seed, n = 9) {
-  const r = rng(seed);
-  const g = Array.from({ length: n * n }, () => r());
-  const v = (i, j) => g[((j % n) + n) % n * n + ((i % n) + n) % n];
-  const s = (t) => t * t * (3 - 2 * t);
-  return (x, y) => {
-    const xi = Math.floor(x), yi = Math.floor(y), xf = s(x - xi), yf = s(y - yi);
-    const a = v(xi, yi), b = v(xi + 1, yi), c = v(xi, yi + 1), d = v(xi + 1, yi + 1);
-    return a + (b - a) * xf + (c - a) * yf + (a - b - c + d) * xf * yf;
-  };
-}
-
-const PAL = {
-  dust: ["#2A2C3A", "#3D4052", "#55596E", "#6E7389"],
-  rock: ["#3A2A24", "#5A4034", "#7D5A45", "#A07A5C"],
-  dark: ["#24181A", "#3A2426", "#4E3032", "#643E3E"],
-  magma: ["#B8361E", "#E8642A", "#F7A53A", "#FFE07A"],
-  sea: ["#14305E", "#1D4A86", "#2A68AE", "#4A8ED0"],
-  land: ["#4B3A26", "#6E5534", "#93743F", "#B8955A"],
-  green: ["#1E4A2E", "#2E6B3C", "#459150", "#6DB868"],
-  cloud: ["#9AA6BC", "#C4CCDA", "#E6EAF2", "#FFFFFF"],
-  ring: ["#7A6A4A", "#A8915F", "#D6BD7E", "#F2DCA0"],
-};
-const BAYER = [[0, 0.5], [0.75, 0.25]];
-
-/** px×px の各ドットの色（"#RRGGBB"、何もないところは null） */
-function planetPixels(seed, stage, px = 32) {
-  const out = Array.from({ length: px * px }, () => null);
-  const c = px / 2, R = px * (stage === 5 ? 0.27 : 0.36) * (stage === 0 ? 0.75 : 1);
-  const n1 = noise(seed), n2 = noise(seed * 7 + 13);
-  const set = (x, y, hex) => { out[y * px + x] = hex; };
-  const ring = (x, y) => {
-    const rx = (x + 0.5 - c) / (R * 1.8), ry = (y + 0.5 - c) / (R * 0.55);
-    const d = rx * rx + ry * ry;
-    return d > 0.62 && d < 1.0;
-  };
-  for (let y = 0; y < px; y++) for (let x = 0; x < px; x++) {
-    const dx = (x + 0.5 - c) / R, dy = (y + 0.5 - c) / R, d2 = dx * dx + dy * dy;
-    const inPlanet = d2 <= 1;
-    if (stage === 5 && ring(x, y) && (!inPlanet || y + 0.5 > c)) {
-      const sh = Math.min(3, Math.max(0, Math.floor(((x + 0.5) / px) * 3 + BAYER[y % 2][x % 2])));
-      set(x, y, PAL.ring[3 - sh]);
-      continue;
-    }
-    if (!inPlanet) continue;
-    const nz = Math.sqrt(1 - d2);
-    const light = -0.55 * dx - 0.55 * dy + 0.65 * nz; // 左上から光
-    const shade = Math.max(0, Math.min(3, Math.floor((light + 0.35) * 3 + BAYER[y % 2][x % 2])));
-    const h = n1((dx + 1) * 3.2 + seed % 5, (dy + 1) * 3.2) * 0.7 + n2((dx + 1) * 6.5, (dy + 1) * 6.5) * 0.3;
-    const h2 = n2((dx + 1) * 5 + 3, (dy + 1) * 4);
-    let pal = PAL.dust;
-    if (stage === 1) pal = h2 > 0.72 ? PAL.dark : PAL.rock;
-    else if (stage === 2) pal = Math.abs(h - 0.5) < 0.06 ? PAL.magma : PAL.dark;
-    else if (stage === 3) pal = h < 0.52 ? PAL.sea : PAL.land;
-    else if (stage >= 4) pal = h2 > 0.7 ? PAL.cloud : h < 0.48 ? PAL.sea : PAL.green;
-    set(x, y, pal[pal === PAL.magma ? 3 - Math.min(3, Math.floor(Math.abs(h - 0.5) * 50)) : shade]);
-  }
-  if (stage === 5) { // 小さな月
-    const mx = Math.round(px * 0.84), my = Math.round(px * 0.18);
-    for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) if (x * x + y * y <= 1) set(mx + x, my + y, x + y < 0 ? "#D8DCE6" : "#8E94A6");
-  }
-  return out;
-}
-
-/** 表示する大きさ（pt）に合わせて、1 ドットを整数ピクセルの四角で描く（ぼやけないように） */
-function planetImage(seed, stage, sizePt) {
-  const px = 32;
-  const cell = Math.max(1, Math.ceil((sizePt * 3) / px));
-  const ctx = new DrawContext();
-  ctx.size = new Size(px * cell, px * cell);
-  ctx.opaque = false;
-  ctx.respectScreenScale = false;
-  const pixels = planetPixels(seed, stage, px);
-  const colors = {};
-  for (let i = 0; i < pixels.length; i++) {
-    const hex = pixels[i];
-    if (!hex) continue;
-    ctx.setFillColor(colors[hex] ?? (colors[hex] = new Color(hex)));
-    ctx.fillRect(new Rect((i % px) * cell, Math.floor(i / px) * cell, cell, cell));
-  }
-  return ctx.getImage();
-}
+const FORGET_AT = 60; // 「忘れかけ」の線（%）。アプリの js/memory.js と同じ
 
 // ---- データ取得（失敗したら前回の値を使う） ----
 const fm = FileManager.local();
@@ -154,26 +60,87 @@ async function loadStats() {
 }
 
 // ---- 表示用の値 ----
+const DAY = 864e5;
 const jstDate = (ms) => new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
+const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / DAY); // "YYYY-MM-DD" どうし
+const dowOf = (date) => (new Date(date + "T00:00:00Z").getUTCDay() + 6) % 7; // 月=0
+const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
 
+/** 送られた日から日付が変わっていたら、分かる範囲で今日の値に直す。v2 でなければ null */
 function view(data) {
   const s = data.summary;
-  // 「今日」は送られた日の値。日付が変われば 0 に戻す
-  const today = jstDate(s.updatedAt ?? data.updatedAt ?? 0) === jstDate(Date.now()) ? s.today ?? 0 : 0;
-  const stage = Math.max(0, Math.min(5, s.stage | 0));
-  let next = "";
-  if (!s.total) next = "範囲にカードがありません";
-  else if (stage === 5) next = "この範囲の星は完成！";
-  else {
-    const need = Math.max(1, Math.ceil((NEXT_AT[stage] / 100) * s.total) - (stage === 0 ? 0 : s.mastered));
-    next = stage === 0 ? "1枚学習すると星が生まれる" : `あと${need}枚の習得で${STAGES[stage + 1]}`;
+  if (!s || s.v !== 2) return null;
+  const today = jstDate(Date.now());
+  const sent = jstDate(s.updatedAt ?? data.updatedAt ?? 0);
+  const gap = Math.max(0, daysBetween(sent, today));
+  const st = s.streak || {};
+  const rv = s.review || {};
+  // 連続: 昨日に送られた値なら、昨日やっていれば続いている（今日はまだ）。2 日以上あいたら途切れ
+  let streak = st.days | 0;
+  if (gap === 1 && !st.todayDone) streak = 0;
+  else if (gap >= 2) streak = 0;
+  // 今週: 同じ週の値だけ使う。「今日」は今の曜日
+  const sameWeek = daysBetween(sent, today) + dowOf(sent) < 7;
+  const week = WEEKDAYS.map((l, i) => {
+    const w = (s.week || [])[i] || {};
+    return { l, done: sameWeek && !!w.d, today: i === dowOf(today) };
+  });
+  // 今日の復習: 日付が変われば今日の分は 0 から。復習どきは減らないので、送られた時点の数を目安にする
+  const limit = rv.limit | 0, due = rv.due | 0;
+  const done = gap ? 0 : rv.done | 0;
+  const remaining = gap ? Math.min(limit, due) : rv.remaining | 0;
+  // 記憶の予測: 経った日数ぶん先に進める
+  const recall = (s.recall || []).slice(Math.min(gap, 7));
+  return { streak, todayDone: gap === 0 && !!st.todayDone, week, remaining, done, recall, studied: s.studied | 0 };
+}
+
+const reviewText = (v, short) => {
+  if (v.remaining > 0) return short ? `復習 ${v.remaining}枚` : `今日の復習 ${v.remaining}枚`;
+  if (v.done > 0) return short ? "復習 おわり" : "今日の復習 おわり";
+  return "復習はありません";
+};
+
+// ---- 記憶の予測のグラフ（今日〜7 日後。点は日ごと、縦は 0〜100%） ----
+function recallChart(values, w, h) {
+  const ctx = new DrawContext();
+  ctx.size = new Size(w, h);
+  ctx.opaque = false;
+  ctx.respectScreenScale = true;
+  const top = 4, bottom = h - 4;
+  const y = (v) => bottom - (Math.max(0, Math.min(100, v)) / 100) * (bottom - top);
+  const x = (i) => 2 + (i / 7) * (w - 4);
+  // 忘れかけの線（点線）とラベル
+  ctx.setStrokeColor(new Color(PAL.sub, 0.6));
+  ctx.setLineWidth(1);
+  const yf = y(FORGET_AT);
+  for (let px = 2; px < w - 2; px += 7) {
+    const p = new Path();
+    p.move(new Point(px, yf));
+    p.addLine(new Point(Math.min(px + 3.5, w - 2), yf));
+    ctx.addPath(p);
+    ctx.strokePath();
   }
-  return { range: s.range || "", pct: s.pct ?? 0, learning: s.learning ?? 0, today, stage, seed: seedOf(String(s.seed ?? "range")), next };
+  ctx.setFont(Font.systemFont(12));
+  ctx.setTextColor(new Color(PAL.sub));
+  ctx.setTextAlignedRight();
+  ctx.drawTextInRect("忘れかけ", new Rect(0, yf + 2, w - 2, 16));
+  // 予測の線
+  if (values.length >= 2) {
+    const p = new Path();
+    p.move(new Point(x(0), y(values[0])));
+    for (let i = 1; i < values.length; i++) p.addLine(new Point(x(i), y(values[i])));
+    ctx.setStrokeColor(new Color(PAL.accent));
+    ctx.setLineWidth(2.5);
+    ctx.addPath(p);
+    ctx.strokePath();
+  }
+  return ctx.getImage();
 }
 
 // ---- 組み立て ----
 const family = config.widgetFamily ?? "medium";
 const { data, stale } = await loadStats();
+const v = data ? view(data) : null;
 const w = new ListWidget();
 if (TAP === "app") w.url = "shortcuts://run-shortcut?name=" + encodeURIComponent(SHORTCUT_NAME);
 else if (TAP === "safari") w.url = APP_URL;
@@ -187,87 +154,103 @@ const text = (stack, str, font, color) => {
   t.minimumScaleFactor = 0.8;
   return t;
 };
-const num = (size) => Font.boldMonospacedSystemFont(size);
+const num = (size) => Font.boldRoundedSystemFont(size);
 const staleNote = (stack) => text(stack, "前回の値", Font.systemFont(12), SUB);
+const streakRow = (stack, size) => {
+  const row = stack.addStack();
+  row.bottomAlignContent();
+  text(row, String(v.streak), num(size), ACCENT);
+  row.addSpacer(3);
+  text(row, "日連続", Font.semiboldSystemFont(15), ACCENT);
+};
+// 今週の 7 日（学習した日 = アクセント、今日でまだ = 枠だけ、ほか = 薄い四角）
+const weekRow = (stack) => {
+  const row = stack.addStack();
+  v.week.forEach((d, i) => {
+    if (i) row.addSpacer(4);
+    const col = row.addStack();
+    col.layoutVertically();
+    col.size = new Size(15, 34);
+    const l = col.addStack();
+    l.addSpacer();
+    text(l, d.l, Font.systemFont(12), d.today ? TEXT : SUB);
+    l.addSpacer();
+    col.addSpacer(3);
+    const box = col.addStack();
+    box.size = new Size(15, 15);
+    box.cornerRadius = 4;
+    if (d.done) box.backgroundColor = ACCENT;
+    else if (d.today) {
+      box.borderColor = ACCENT;
+      box.borderWidth = 1.5;
+    } else box.backgroundColor = FILL;
+  });
+};
 
 if (family.startsWith("accessory")) {
   // ロック画面: 色は iOS が付けるので指定しない
   if (family === "accessoryCircular") w.addAccessoryWidgetBackground = true;
-  if (!data) {
-    text(w, family === "accessoryInline" ? "韓国語カード: URL 未設定" : "未設定", Font.systemFont(12));
+  if (!v) {
+    const msg = data ? "アプリを開いて更新" : "URL 未設定";
+    text(w, family === "accessoryInline" ? `韓国語カード: ${msg}` : msg, Font.systemFont(12));
+  } else if (family === "accessoryInline") {
+    text(w, `${v.streak}日連続・${reviewText(v, true)}${stale ? "（前回）" : ""}`, Font.systemFont(12));
+  } else if (family === "accessoryCircular") {
+    const t = text(w, String(v.streak), num(20));
+    t.centerAlignText();
+    const l = text(w, "日", Font.systemFont(12));
+    l.centerAlignText();
   } else {
-    const v = view(data);
-    if (family === "accessoryInline") {
-      text(w, `習得 ${v.pct}% · 今日 ${v.today}枚${stale ? "（前回）" : ""}`, Font.systemFont(12));
-    } else if (family === "accessoryCircular") {
-      const t = text(w, `${v.pct}%`, num(16));
-      t.centerAlignText();
-      const l = text(w, "習得", Font.systemFont(12));
-      l.centerAlignText();
-    } else {
-      const row = w.addStack();
-      row.centerAlignContent();
-      text(row, String(v.today), num(26));
-      row.addSpacer(8);
-      const col = row.addStack();
-      col.layoutVertically();
-      text(col, "今日の学習", Font.systemFont(12));
-      text(col, `学習中 ${v.learning}${stale ? " · 前回" : ""}`, Font.systemFont(12));
-    }
+    text(w, `${v.streak}日連続`, Font.boldSystemFont(16));
+    text(w, reviewText(v, true) + (stale ? " · 前回" : ""), Font.systemFont(13));
   }
 } else {
   w.backgroundColor = BG;
-  if (!data) {
-    w.setPadding(14, 14, 14, 14);
-    text(w, "韓国語カード", Font.boldSystemFont(13), ACCENT);
+  w.setPadding(14, 16, 14, 16);
+  if (!v) {
+    text(w, "韓国語カード", Font.boldSystemFont(14), TEXT);
     w.addSpacer(6);
-    const m = w.addText("アプリの 設定 ▸ ウィジェット の URL を、このスクリプトの STATS_URL に貼ってください。");
+    const m = w.addText(data
+      ? "アプリを開いて更新してください。"
+      : "アプリの 設定 ▸ ウィジェット の URL を、このスクリプトの STATS_URL に貼ってください。");
     m.font = Font.systemFont(12);
     m.textColor = SUB;
+  } else if (family === "small") {
+    streakRow(w, 44);
+    w.addSpacer();
+    text(w, reviewText(v), Font.semiboldSystemFont(15), TEXT);
+    if (stale) staleNote(w);
   } else {
-    const v = view(data);
-    if (family === "small") {
-      w.setPadding(10, 10, 10, 10);
-      const top = w.addStack();
-      top.addSpacer();
-      const img = top.addImage(planetImage(v.seed, v.stage, 84));
-      img.imageSize = new Size(84, 84);
-      top.addSpacer();
-      w.addSpacer(2);
-      const row = w.addStack();
-      row.addSpacer();
-      text(row, `${v.pct}%`, num(20), ACCENT);
-      row.addSpacer();
-      if (stale) {
-        const r2 = w.addStack();
-        r2.addSpacer();
-        staleNote(r2);
-        r2.addSpacer();
-      }
-    } else {
-      // 中（大きいサイズも同じ並び）
-      w.setPadding(12, 14, 12, 14);
-      const row = w.addStack();
-      row.centerAlignContent();
-      const img = row.addImage(planetImage(v.seed, v.stage, 120));
-      img.imageSize = new Size(120, 120);
-      row.addSpacer(12);
-      const col = row.addStack();
-      col.layoutVertically();
-      text(col, `${v.range}の星`, Font.systemFont(13), SUB);
-      text(col, `${v.pct}%`, num(28), ACCENT);
-      text(col, `学習中 ${v.learning} · 今日 ${v.today}枚`, Font.systemFont(12), SUB);
-      col.addSpacer(4);
-      const n = col.addText(v.next);
-      n.font = Font.systemFont(12);
-      n.textColor = TEXT;
-      n.lineLimit = 2;
-      if (stale) {
-        col.addSpacer(4);
-        staleNote(col);
-      }
-      row.addSpacer();
+    // 中（大きいサイズも同じ並び）
+    const row = w.addStack();
+    const left = row.addStack();
+    left.layoutVertically();
+    streakRow(left, 36);
+    left.addSpacer();
+    weekRow(left);
+    if (stale) {
+      left.addSpacer(4);
+      staleNote(left);
     }
+    row.addSpacer(16);
+    const right = row.addStack();
+    right.layoutVertically();
+    text(right, reviewText(v), Font.semiboldSystemFont(15), TEXT);
+    right.addSpacer();
+    if (v.studied && v.recall.length >= 2) {
+      const img = right.addImage(recallChart(v.recall, 150, 64));
+      img.imageSize = new Size(150, 64);
+      const axis = right.addStack();
+      axis.size = new Size(150, 0);
+      text(axis, "今日", Font.systemFont(12), SUB);
+      axis.addSpacer();
+      text(axis, "7日後", Font.systemFont(12), SUB);
+    } else {
+      const m = right.addText("学習すると記憶の予測が出ます");
+      m.font = Font.systemFont(12);
+      m.textColor = SUB;
+    }
+    row.addSpacer();
   }
 }
 

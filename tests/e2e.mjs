@@ -68,18 +68,41 @@ const promptCard = async () => byId.get(await page.locator('.prompt[data-card]')
 const promptIsKo = async () => (await page.locator('.prompt .q').first().getAttribute('class')).includes('ko');
 const answerFor = (card, promptKo) => stripNotes(promptKo ? card.definition : card.term).split(/\s*[\/／]\s*/)[0];
 
-async function tapLesson(label) {
-  await page.locator('.ltile', { hasText: new RegExp(`^${label}`) }).click();
+const HOME = '.streak-num';
+const T0 = Date.now();
+// 時刻を固定して進められるようにする（今日の復習を試すため。タイマーは止めない）
+await page.clock.setFixedTime(T0);
+async function tapLesson(lesson) {
+  await page.locator(`.ring[aria-label^="${lesson} "]`).click();
+}
+// 表紙の「学習する」→ 続きがあれば続きから、なければ新しく始める
+async function openLearn({ fresh = false } = {}) {
+  await page.getByRole('button', { name: '学習する', exact: true }).click();
+  await page.waitForSelector('.rings');
+  const resume = page.getByRole('button', { name: '続きから', exact: true });
+  if (!fresh && (await resume.count())) return resume.click();
+  await btn('この範囲で新しく始める').click();
+  const discard = btn('途中のラウンドを消して始める');
+  if (await discard.count()) await discard.click();
+}
+// 表紙のモード → 範囲のページ →「この範囲で始める」
+async function openMode(name) {
+  await page.getByRole('button', { name, exact: true }).click();
+  await btn('この範囲で始める').click();
 }
 
-// ---- ホーム ----
+// ---- 表紙 ----
 await page.goto(base);
-await page.waitForSelector('.ltile');
+await page.waitForSelector(HOME);
+assert.match(await page.locator(HOME).textContent(), /^0 日連続/);
 await shot('home');
-log('ホーム表示');
+log('表紙表示');
 
 // ---- 学習 ----
-await btn(/^学習 ·/).click();
+await page.getByRole('button', { name: '学習する', exact: true }).click();
+await page.waitForSelector('.rings');
+await shot('start');
+await btn('この範囲で新しく始める').click();
 let mcWrongDone = false;
 let writtenWrongDone = false;
 let dontKnowDone = false;
@@ -154,23 +177,55 @@ await answerLearnQuestion();
 await answerLearnQuestion();
 const posBefore = await page.locator('.top .small').first().textContent();
 await page.reload();
-await page.waitForSelector('.ltile');
-const resumeLabel = await page.locator('.btn.primary').textContent();
-assert.match(resumeLabel, /学習の続き/);
-await shot('home-resume');
-await btn('学習の続き').click();
+await page.waitForSelector(HOME);
+assert.match(await page.locator(HOME).textContent(), /^1 日連続/, '学習した日が連続記録に入っていない');
+await shot('home-after-study');
+await page.getByRole('button', { name: '学習する', exact: true }).click();
+await page.getByRole('button', { name: '続きから', exact: true }).waitFor();
+await shot('start-resume');
+await page.getByRole('button', { name: '続きから', exact: true }).click();
 const posAfter = await page.locator('.top .small').first().textContent();
 assert.equal(posAfter, posBefore);
 log('再読み込み後に続きから再開', posBefore, '→', posAfter);
 await page.getByRole('button', { name: '閉じる' }).click();
 
-// ---- 範囲を第6課（単語＋文法）に変える ----
-await tapLesson('6課');
-await tapLesson('1課');
-await shot('home-lesson6');
+// ---- 範囲を第6課に変え、新しく始めようとすると確認が出る（やめれば続きが残る） ----
+await page.getByRole('button', { name: '学習する', exact: true }).click();
+await tapLesson('第6課');
+await tapLesson('第1課');
+await btn('この範囲で新しく始める').click();
+await btn('途中のラウンドを消して始める').waitFor();
+await shot('start-confirm');
+await btn('やめる（続きを残す）').click();
+assert.equal(await page.locator('.sheet').count(), 0);
+assert.equal(await page.getByRole('button', { name: '続きから', exact: true }).count(), 1, '続きが消えた');
+log('新しく始めるときの確認（やめると続きが残る）');
+await page.getByRole('button', { name: '戻る' }).click();
+
+// ---- 今日の復習: 3日たつと、学習した単語が「復習どき」になる ----
+await page.clock.setFixedTime(T0 + 3 * 864e5);
+await page.reload();
+await page.waitForSelector(HOME);
+const reviewBtn = btn('今日の復習');
+await reviewBtn.first().waitFor();
+const reviewCount = Number((await reviewBtn.first().textContent()).match(/(\d+)/)[1]);
+assert.ok(reviewCount > 0, '復習どきの単語がない');
+await shot('home-review');
+await reviewBtn.first().click();
+for (let i = 0; i < 60 && !(await page.getByText('今日の復習が終わりました').count()); i++) {
+  if (await btn('次のラウンドへ').count()) { await btn('次のラウンドへ').click(); continue; }
+  if (await btn('復習を終える').count()) { await btn('復習を終える').click(); continue; }
+  await page.waitForSelector('.prompt[data-card], h1, h2');
+  if (await page.locator('.prompt[data-card]').count()) await answerLearnQuestion();
+}
+await shot('review-done');
+await btn('ホームへ').click();
+await page.waitForSelector(HOME);
+assert.match(await page.locator('.card').nth(2).textContent(), /今日の復習は終わりました/);
+log('今日の復習', reviewCount, '枚');
 
 // ---- 単語カード ----
-await btn('単語カード').click();
+await openMode('単語カード');
 await page.waitForSelector('.flash');
 await shot('flash-front');
 await page.locator('.flash-wrap').click({ position: { x: 150, y: 200 } });
@@ -193,7 +248,7 @@ log('単語カード: めくる・スワイプ・まだだけもう1周');
 await page.getByRole('button', { name: '閉じる' }).click();
 
 // ---- テスト ----
-await btn('テスト').click();
+await openMode('テスト');
 await btn('10問').click();
 await btn('正誤').click();
 await btn('線結び').click();
@@ -253,7 +308,7 @@ if (await btn('間違えた単語で学習する').count()) {
 log('テスト結果と「間違えた単語で学習」');
 
 // ---- スペル ----
-await btn('スペル').click();
+await openMode('スペル');
 await shot('spell-intro');
 await btn('問はじめる').click();
 for (let i = 0; i < 12 && !(await page.getByText('スペル結果').count()); i++) {
@@ -275,7 +330,7 @@ log('スペル完了');
 await btn('ホームへ').click();
 
 // ---- マッチ ----
-await btn('マッチ').click();
+await openMode('マッチ');
 await btn('スタート').click();
 await page.waitForSelector('.tile');
 await shot('match-board');
@@ -312,7 +367,7 @@ log('バックアップ書き出し', Object.keys(backup.progress).length, '件'
 await btn('ダーク').click();
 await page.getByRole('button', { name: '戻る' }).click();
 await shot('home-dark');
-await btn(/^学習/).click();
+await openLearn();
 await page.waitForSelector('.prompt[data-card]');
 await shot('learn-dark');
 await page.getByRole('button', { name: '閉じる' }).click();
@@ -320,7 +375,7 @@ await page.getByRole('button', { name: '閉じる' }).click();
 // ---- 文字を大きくしても崩れない（Dynamic Type の最大級を想定） ----
 await page.addStyleTag({ content: 'html { font-size: 28px !important; }' });
 await shot('home-large-text');
-await btn(/^学習/).click();
+await openLearn();
 await page.waitForSelector('.prompt[data-card]');
 await shot('learn-large-text');
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
@@ -330,11 +385,11 @@ await page.getByRole('button', { name: '閉じる' }).click();
 // ---- オフライン起動 ----
 await page.evaluate(() => navigator.serviceWorker.ready);
 await page.reload();
-await page.waitForSelector('.ltile');
+await page.waitForSelector(HOME);
 await ctx.setOffline(true);
 await page.reload();
-await page.waitForSelector('.ltile', { timeout: 5000 });
-await btn(/^学習/).click();
+await page.waitForSelector(HOME, { timeout: 5000 });
+await openLearn();
 await page.waitForSelector('.prompt[data-card]');
 await shot('offline-learn');
 log('オフラインで起動・学習');
@@ -347,7 +402,7 @@ await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => 
 await page.getByText('新しいバージョンがあります').waitFor({ timeout: 10000 });
 await shot('update-banner');
 await btn('更新').click();
-await page.waitForSelector('.ltile');
+await page.waitForSelector(HOME);
 assert.equal(await page.getByText('新しいバージョンがあります').count(), 0);
 log('更新の知らせ → 更新ボタンで再読み込み');
 
@@ -373,7 +428,7 @@ async function newSyncDevice() {
   const p = await c.newPage();
   p.on('pageerror', (e) => errors.push(e.message));
   await p.goto(base);
-  await p.waitForSelector('.ltile');
+  await p.waitForSelector(HOME);
   return { c, p };
 }
 async function login(p, password) {
@@ -395,7 +450,8 @@ async function login(p, password) {
   await d1.p.waitForTimeout(300);
   await d1.p.screenshot({ path: path.join(outDir, `${String(++n).padStart(2, '0')}-sync-logged-in.png`) });
   await d1.p.getByRole('button', { name: '戻る' }).click();
-  await d1.p.getByRole('button', { name: /^学習/ }).click();
+  await d1.p.getByRole('button', { name: '学習する', exact: true }).click();
+  await d1.p.getByRole('button', { name: 'この範囲で新しく始める' }).click();
   const id = await d1.p.locator('.prompt[data-card]').getAttribute('data-card');
   await d1.p.locator(`.choice[data-card="${id}"]`).click();
   await d1.p.getByRole('button', { name: '閉じる' }).click();
@@ -405,11 +461,12 @@ async function login(p, password) {
   assert.ok(fakeDb.has('progress'), '進捗が送られていない');
 
   const d2 = await newSyncDevice();
-  assert.equal(await d2.p.locator('.stats b').nth(1).textContent(), '0');
+  assert.equal(await d2.p.getByText('学習した 1 枚').count(), 0);
   await login(d2.p, 'pw');
   await d2.p.getByText('ログインして同期しました').waitFor();
   await d2.p.getByRole('button', { name: '戻る' }).click();
-  assert.equal(await d2.p.locator('.stats b').nth(1).textContent(), '1', '端末2に学習中の1枚が届いていない');
+  await d2.p.getByText('学習した 1 枚').waitFor({ timeout: 5000 });
+  assert.match(await d2.p.locator(HOME).textContent(), /^1 日連続/, '連続記録が届いていない');
   await d2.p.screenshot({ path: path.join(outDir, `${String(++n).padStart(2, '0')}-sync-device2-home.png`) });
   log('同期: 端末1の学習が端末2に届く');
   await d1.c.close();

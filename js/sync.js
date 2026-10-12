@@ -4,6 +4,7 @@
 // まとめ方:
 //   progress  … カードごとに新しいほうの記録を残す（2台で別々に学習しても両方生きる）
 //   matchBest … 範囲ごとに速いほう
+//   days      … 日ごとに大きいほう（連続記録は消さない。リセットの対象外）
 //   その他     … 最後に変更したほう（settings / selection / flash / accepted）
 //   進捗のリセット・バックアップからの復元をした時刻（resetAt）より前の記録は、どちらの端末のものも捨てる
 
@@ -53,6 +54,10 @@ export function mergeAll(local, remote, localResetAt = 0) {
     let merged;
     if (key === 'progress') {
       merged = { v: mergeProgress(L?.v, R?.v, resetAt), u };
+    } else if (key === 'days') {
+      const v = { ...(R?.v ?? {}) };
+      for (const [d, x] of Object.entries(L?.v ?? {})) v[d] = { a: Math.max(x.a ?? 0, v[d]?.a ?? 0), r: Math.max(x.r ?? 0, v[d]?.r ?? 0) };
+      merged = { v, u };
     } else if (key === 'matchBest') {
       const v = { ...(alive(key, R) ? R.v : {}) };
       for (const [k, t] of Object.entries(alive(key, L) ? L.v ?? {} : {})) v[k] = v[k] == null ? t : Math.min(v[k], t);

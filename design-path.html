@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>道のりと連続記録</title>
+<style>
+  /* ---- 見比べ用ページ ---- */
+  html { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Apple SD Gothic Neo", sans-serif; }
+  body { margin: 0; background: #E4E3E0; color: #1B1C1E; }
+  .tools { position: sticky; top: 0; z-index: 10; background: #E4E3E0; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .tools button { font: inherit; font-size: 0.9375rem; min-height: 44px; min-width: 44px; padding: 0 14px; border: 0; border-radius: 10px; background: #D3D2CE; cursor: pointer; }
+  .tools button[aria-pressed="true"] { background: #1B1C1E; color: #fff; }
+  .tools .lbl { font-size: 0.8125rem; color: #55565A; margin-left: 8px; }
+  .desc { max-width: 1100px; padding: 0 16px 8px; font-size: 0.9375rem; line-height: 1.6; }
+  .desc h2 { font-size: 1.125rem; margin: 4px 0; }
+  .desc ul { margin: 4px 0; padding-left: 1.2em; }
+  .stage { display: flex; flex-wrap: wrap; gap: 24px; padding: 8px 16px 48px; align-items: flex-start; }
+  .cap { font-size: 0.8125rem; color: #55565A; margin: 0 0 6px 4px; }
+
+  /* ---- アプリ画面 ---- */
+  .screen { position: relative; width: 390px; max-width: 100%; height: 844px; overflow: hidden; border-radius: 36px; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; font-size: 1.0625rem; line-height: 1.5; }
+  .status { height: 47px; flex: none; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 28px 6px; font-size: 0.9375rem; font-weight: 600; }
+  .homebar { height: 34px; flex: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
+  .homebar::after { content: ""; width: 134px; height: 5px; border-radius: 3px; background: var(--fg); opacity: .9; }
+  .pad { padding: 0 16px; }
+  .scroll { flex: 1; overflow: auto; }
+  .muted { color: var(--fg2); }
+  .small { font-size: 0.8125rem; }
+  .tiny { font-size: 0.75rem; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .grow { flex: 1; min-width: 0; }
+  .btn { font: inherit; border: 0; min-height: 48px; border-radius: 14px; background: var(--fill); color: var(--fg); padding: 0 12px; }
+  .btn.primary { background: var(--accent); color: var(--on-accent); font-weight: 600; min-height: 56px; width: 100%; }
+  .acc { color: var(--accent-text); }
+  .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  .modes .btn { font-size: 0.875rem; padding: 0 4px; }
+  .bar { height: 6px; border-radius: 3px; background: var(--fill); display: flex; overflow: hidden; }
+  .bar > .m { background: var(--accent); } .bar > .l { background: var(--accent-weak); }
+  .big { font-size: 1.75rem; font-weight: 700; line-height: 1.15; }
+  .segbtn { display: flex; gap: 6px; } .segbtn span { flex: 1; min-height: 40px; border-radius: 10px; background: var(--fill); display: flex; align-items: center; justify-content: center; font-size: 0.875rem; }
+  .segbtn span.on { background: var(--sel-bg); color: var(--sel-fg); font-weight: 600; }
+  .hscroll { overflow-x: auto; overflow-y: hidden; margin: 0 -16px; padding: 0 16px; scrollbar-width: none; }
+  .hscroll::-webkit-scrollbar { display: none; }
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
+  .week .d { height: 32px; border-radius: 8px; background: var(--fill); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--fg2); }
+  .week .d.on { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .week .d.today { background: var(--sel-bg-soft); color: var(--accent-text); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="tools" role="toolbar">
+  <button data-opt="1">案1</button><button data-opt="2">案2</button><button data-opt="3">案3</button><button data-opt="4">案4</button><button data-opt="5">案5</button>
+  <span class="lbl">色：</span>
+  <button data-pal="1">青</button><button data-pal="2">白黒</button><button data-pal="3">iOS</button><button data-pal="4">青磁</button><button data-pal="5">藍</button>
+</div>
+<div class="desc" id="desc"></div>
+<div class="stage" id="stage"></div>
+
+<script>
+// ---- 実データ（課ごとの枚数は実数。習得率・連続日数はダミー） ----
+const LESSONS = [['第1課', 9, 100, 0], ['第2課', 26, 88, 8], ['第3課', 19, 74, 16], ['第4課', 35, 51, 23], ['第5課', 51, 22, 30], ['第6課', 87, 6, 14], ['第7課', 107, 0, 4], ['第8課', 100, 0, 0], ['第9課', 153, 0, 0], ['第10課', 165, 0, 0], ['第11課', 123, 0, 0], ['第12課', 121, 0, 0], ['第13課', 96, 0, 0], ['第14課', 105, 0, 0], ['第15課', 121, 0, 0], ['第16課', 115, 0, 0], ['第17課', 102, 0, 0], ['第18課', 114, 0, 0], ['第19課', 95, 0, 0], ['第20課', 85, 0, 0], ['第21課', 126, 0, 0], ['第22課', 77, 0, 0], ['会話表現', 82, 10, 5]];
+const SEL_FROM = 0, SEL_TO = 4; // 第1〜5課
+const RANGE = { label: '第1〜5課', count: 140, m: 54, l: 22, mc: 76, lc: 31, uc: 33 };
+const STREAK = { days: 12, best: 18, week: [1, 1, 1, 1, 1, 0, 0], todayIdx: 5, todayDone: false }; // 月〜日。今日は土曜でまだ
+const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日'];
+const short = (n) => (n === '会話表現' ? '会話' : n.replace('第', '').replace('課', ''));
+const HERE = LESSONS.findIndex((x) => x[2] < 100);
+
+const PAL = {
+  1: { light: { bg: '#F4F3EF', fg: '#1C1D1F', fg2: '#66676B', sep: '#DAD8D2', fill: '#E7E5E0', accent: '#2F57C9', 'accent-text': '#2F57C9', 'accent-weak': 'rgba(47,87,201,.35)', 'on-accent': '#fff', 'sel-bg': '#2F57C9', 'sel-fg': '#fff', 'sel-bg-soft': 'rgba(47,87,201,.14)', surface: '#FFFFFF' },
+       dark: { bg: '#161719', fg: '#ECECEE', fg2: '#9C9DA2', sep: '#2E2F33', fill: '#25262A', accent: '#87A2FF', 'accent-text': '#87A2FF', 'accent-weak': 'rgba(135,162,255,.35)', 'on-accent': '#0F1630', 'sel-bg': '#87A2FF', 'sel-fg': '#0F1630', 'sel-bg-soft': 'rgba(135,162,255,.16)', surface: '#1F2023' } },
+  2: { light: { bg: '#FFFFFF', fg: '#111111', fg2: '#6E6E6E', sep: '#E6E6E6', fill: '#F1F1F1', accent: '#111111', 'accent-text': '#111111', 'accent-weak': 'rgba(17,17,17,.28)', 'on-accent': '#FFFFFF', 'sel-bg': '#111111', 'sel-fg': '#FFFFFF', 'sel-bg-soft': 'rgba(17,17,17,.08)', surface: '#F7F7F7' },
+       dark: { bg: '#0E0E0E', fg: '#EDEDED', fg2: '#9A9A9A', sep: '#262626', fill: '#1C1C1C', accent: '#EDEDED', 'accent-text': '#EDEDED', 'accent-weak': 'rgba(237,237,237,.3)', 'on-accent': '#0E0E0E', 'sel-bg': '#EDEDED', 'sel-fg': '#0E0E0E', 'sel-bg-soft': 'rgba(237,237,237,.12)', surface: '#161616' } },
+  3: { light: { bg: '#F2F2F7', fg: '#000000', fg2: '#6C6C70', sep: '#E5E5EA', fill: '#E5E5EA', accent: '#007AFF', 'accent-text': '#007AFF', 'accent-weak': 'rgba(0,122,255,.3)', 'on-accent': '#FFFFFF', 'sel-bg': '#007AFF', 'sel-fg': '#FFFFFF', 'sel-bg-soft': 'rgba(0,122,255,.12)', surface: '#FFFFFF' },
+       dark: { bg: '#000000', fg: '#FFFFFF', fg2: '#98989F', sep: '#38383A', fill: '#2C2C2E', accent: '#0A84FF', 'accent-text': '#0A84FF', 'accent-weak': 'rgba(10,132,255,.35)', 'on-accent': '#FFFFFF', 'sel-bg': '#0A84FF', 'sel-fg': '#FFFFFF', 'sel-bg-soft': 'rgba(10,132,255,.2)', surface: '#1C1C1E' } },
+  4: { light: { bg: '#F6F4EE', fg: '#1E2422', fg2: '#68706C', sep: '#DEDBD2', fill: '#EAE7DF', accent: '#2E7663', 'accent-text': '#2E7663', 'accent-weak': 'rgba(46,118,99,.3)', 'on-accent': '#FFFFFF', 'sel-bg': '#D5E6DF', 'sel-fg': '#1F5A4A', 'sel-bg-soft': 'rgba(46,118,99,.12)', surface: '#FFFFFF' },
+       dark: { bg: '#131715', fg: '#E5EAE7', fg2: '#939C97', sep: '#262C29', fill: '#1F2522', accent: '#6CC3AE', 'accent-text': '#6CC3AE', 'accent-weak': 'rgba(108,195,174,.3)', 'on-accent': '#0B1A16', 'sel-bg': '#1E3A33', 'sel-fg': '#8ED6C4', 'sel-bg-soft': 'rgba(108,195,174,.14)', surface: '#1A1F1D' } },
+  5: { light: { bg: '#F5F5F3', fg: '#1A1B1F', fg2: '#6A6B72', sep: '#E1E1DD', fill: '#E9E9E6', accent: '#3F4BA8', 'accent-text': '#3F4BA8', 'accent-weak': 'rgba(63,75,168,.3)', 'on-accent': '#FFFFFF', 'sel-bg': '#3F4BA8', 'sel-fg': '#FFFFFF', 'sel-bg-soft': 'rgba(63,75,168,.12)', surface: '#FFFFFF' },
+       dark: { bg: '#121317', fg: '#E8E9EE', fg2: '#9798A2', sep: '#25262D', fill: '#1E1F26', accent: '#8F9AF0', 'accent-text': '#8F9AF0', 'accent-weak': 'rgba(143,154,240,.3)', 'on-accent': '#10132E', 'sel-bg': '#8F9AF0', 'sel-fg': '#10132E', 'sel-bg-soft': 'rgba(143,154,240,.16)', surface: '#1A1B21' } },
+};
+
+// ---- 部品 ----
+const status = () => '<div class="status"><span>9:41</span><span>●●● ▮</span></div>';
+const screen = (inner) => `<div class="screen">${status()}${inner}<div class="homebar"></div></div>`;
+const bar = (m, l) => `<div class="bar"><div class="m" style="width:${m}%"></div><div class="l" style="width:${l}%"></div></div>`;
+const header = () => `<div class="row" style="min-height:52px"><span class="grow" style="font-size:1.375rem;font-weight:700">韓国語カード</span><span class="muted">⚙</span></div>`;
+const summary = () => `<div class="row" style="align-items:flex-end;margin:4px 0 8px"><div class="grow"><div class="muted small">${RANGE.label} · ${RANGE.count}枚</div><div class="big">${RANGE.m}%<span class="muted" style="font-size:0.9375rem;font-weight:400"> 習得</span></div></div><div class="muted small" style="text-align:right">学習中 ${RANGE.lc}<br>未学習 ${RANGE.uc}</div></div>${bar(RANGE.m, RANGE.l)}`;
+const types = () => `<div class="segbtn" style="margin:16px 0 0"><span class="on">単語</span><span class="on">文法</span><span class="on">会話表現</span></div>`;
+const bottom = () => `<div class="pad" style="padding-top:12px"><button class="btn primary">学習 · ${RANGE.count}枚</button><div class="modes">${['単語カード', 'テスト', 'スペル', 'マッチ'].map((m) => `<button class="btn">${m}</button>`).join('')}</div></div>`;
+const week = () => `<div class="week">${WEEKDAYS.map((w, i) => `<div><div class="tiny muted">${w}</div><div class="d ${STREAK.week[i] ? 'on' : i === STREAK.todayIdx ? 'today' : ''}" style="margin-top:2px">${STREAK.week[i] ? '✓' : i === STREAK.todayIdx ? '今日' : ''}</div></div>`).join('')}</div>`;
+
+// 連続記録（大・中・小）
+const streakBig = () => `<div style="background:var(--surface);border-radius:16px;padding:16px">
+  <div class="row" style="align-items:flex-end"><div class="grow"><div style="font-size:2.75rem;font-weight:800;line-height:1" class="acc">${STREAK.days}<span style="font-size:1.125rem;font-weight:700"> 日連続</span></div>
+  <div class="small muted" style="margin-top:6px">今日やれば ${STREAK.days + 1} 日。最高記録 ${STREAK.best} 日</div></div></div>
+  <div style="margin-top:12px">${week()}</div></div>`;
+const streakMid = () => `<div style="background:var(--surface);border-radius:14px;padding:12px 14px" class="row"><div><div class="big acc">${STREAK.days}<span style="font-size:0.9375rem"> 日連続</span></div><div class="tiny muted">最高 ${STREAK.best} 日</div></div><div class="grow">${week()}</div></div>`;
+const streakLine = () => `<div class="row" style="background:var(--sel-bg-soft);border-radius:12px;padding:10px 14px;min-height:44px"><span style="font-weight:700" class="acc">${STREAK.days}日連続</span><span class="small muted grow">今日やれば ${STREAK.days + 1} 日</span><span class="tiny muted">最高 ${STREAK.best}</span></div>`;
+
+// 縦棒グラフ（案3 のまま）とスライダー
+function chart(H = 110) {
+  const bars = LESSONS.map(([n, t, m, l], i) => `<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:${H}px;background:${i >= SEL_FROM && i <= SEL_TO ? 'var(--fill)' : 'transparent'};border-radius:3px"><div style="height:${(l / 100) * H}px;background:var(--accent-weak)"></div><div style="height:${Math.max(2, (m / 100) * H)}px;background:${m ? 'var(--accent)' : 'var(--sep)'}"></div></div>`).join('');
+  return `<div style="display:flex;gap:3px;align-items:flex-end">${bars}</div><div class="row tiny muted" style="justify-content:space-between;margin-top:4px"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>会話</span></div>`;
+}
+const slider = () => `<div style="position:relative;height:44px;margin-top:8px"><div style="position:absolute;left:0;right:0;top:20px;height:4px;border-radius:2px;background:var(--fill)"></div><div style="position:absolute;left:0;width:22%;top:20px;height:4px;border-radius:2px;background:var(--accent)"></div><div style="position:absolute;left:-2px;top:8px;width:28px;height:28px;border-radius:50%;background:var(--accent)"></div><div style="position:absolute;left:calc(22% - 14px);top:8px;width:28px;height:28px;border-radius:50%;background:var(--accent)"></div></div><div class="row small"><span class="grow">第1課 〜 第5課</span><span class="muted">${RANGE.count}枚</span></div>`;
+
+// 横の道のり（横スクロール）。trim: 範囲を帯＋両端のつまみで見せる / big: 1課ずつの棒
+function path({ trim = false, tall = false } = {}) {
+  const W = 56;
+  const nodes = LESSONS.map(([n, t, m, l], i) => {
+    const dot = m >= 100 ? 'var(--accent)' : m > 0 || l > 0 ? 'var(--accent-weak)' : 'var(--fill)';
+    const inSel = i >= SEL_FROM && i <= SEL_TO;
+    return `<div style="width:${W}px;flex:none;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1">
+      <div class="tiny ${i === HERE ? 'acc' : 'muted'}" style="height:16px;font-weight:700">${i === HERE ? 'いまここ' : ''}</div>
+      <div style="font-size:0.9375rem;font-weight:${inSel ? 700 : 400}">${short(n)}</div>
+      <div style="width:${tall ? 24 : 18}px;height:${tall ? 24 : 18}px;border-radius:50%;background:${dot};margin:6px 0"></div>
+      <div class="tiny muted">${m}%</div></div>`;
+  }).join('');
+  const band = `<div style="position:absolute;left:${SEL_FROM * W + 4}px;width:${(SEL_TO - SEL_FROM + 1) * W - 8}px;top:16px;bottom:0;background:var(--sel-bg-soft);border-radius:12px"></div>`;
+  const handles = trim ? `<div style="position:absolute;left:${SEL_FROM * W}px;top:28px;width:8px;height:40px;border-radius:4px;background:var(--accent)"></div><div style="position:absolute;left:${(SEL_TO + 1) * W - 8}px;top:28px;width:8px;height:40px;border-radius:4px;background:var(--accent)"></div>` : '';
+  const line = `<div style="position:absolute;left:${W / 2}px;width:${(LESSONS.length - 1) * W}px;top:${16 + 22 + 6 + (tall ? 12 : 9)}px;height:2px;background:var(--sep)"></div>`;
+  return `<div class="hscroll"><div style="position:relative;display:flex;width:${LESSONS.length * W}px;padding-bottom:4px">${band}${line}${handles}${nodes}</div></div>`;
+}
+// 1課ずつの太い棒を横スクロール
+function bigBars() {
+  const W = 44, H = 96;
+  return `<div class="hscroll"><div style="display:flex;gap:8px;width:${LESSONS.length * (W + 8)}px">${LESSONS.map(([n, t, m, l], i) => {
+    const inSel = i >= SEL_FROM && i <= SEL_TO;
+    return `<div style="width:${W}px;flex:none;display:flex;flex-direction:column;align-items:center;gap:4px"><div class="tiny ${i === HERE ? 'acc' : 'muted'}" style="height:16px;font-weight:700">${i === HERE ? 'いま' : ''}</div>
+      <div style="width:100%;height:${H}px;border-radius:10px;background:${inSel ? 'var(--sel-bg-soft)' : 'var(--fill)'};display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden"><div style="height:${(l / 100) * H}px;background:var(--accent-weak)"></div><div style="height:${(m / 100) * H}px;background:var(--accent)"></div></div>
+      <div style="font-size:0.875rem;font-weight:${inSel ? 700 : 400}" class="${inSel ? 'acc' : ''}">${short(n)}</div></div>`;
+  }).join('')}</div></div>`;
+}
+
+const OPTIONS = {
+  1: {
+    name: '案1 案3のまま＋連続記録（大きめ）', points: ['いまの案3（縦棒グラフ＋範囲スライダー）はそのまま。空いていた下の余白に連続記録を置く。', '「12日連続」と今週の7日（学習した日に ✓、今日は枠）。今日まだなら「今日やれば13日」。'],
+    home: () => screen(`<div class="scroll pad">${header()}${summary()}${types()}<div class="muted small" style="margin:16px 0 8px">課ごとの習得率</div>${chart()}${slider()}<div style="margin-top:16px">${streakBig()}</div><div style="height:12px"></div></div>${bottom()}`),
+  },
+  2: {
+    name: '案2 横の道のり＋つまみで範囲（動画のトリミング風）', points: ['案5の道のりを横にして、左右にスワイプ。いまの課が真ん中に来た状態で開く。', '選んでいる範囲は薄い帯。帯の両端のつまみを左右に動かして範囲を変える（iPhone の動画のトリミングと同じ操作）。', 'グラフとスライダーが 1 つにまとまる。連続記録は中くらい。'],
+    home: () => screen(`<div class="scroll pad">${header()}${summary()}${types()}<div class="row" style="margin:16px 0 4px"><span class="muted small grow">道のり（左右にスワイプ）</span><span class="small acc">全部</span></div>${path({ trim: true })}<div class="row small" style="margin-top:6px"><span class="grow">第1課 〜 第5課</span><span class="muted">${RANGE.count}枚</span></div><div style="margin-top:16px">${streakMid()}</div><div style="height:12px"></div></div>${bottom()}`),
+  },
+  3: {
+    name: '案3 横の道のり＋スライダー', points: ['道のり（横スワイプ）は見るためだけ。範囲は下のスライダーで選ぶ（いまの案3と同じ操作）。', '見ると選ぶを分けたので、まちがえて範囲が変わりにくい。', '連続記録は大きめ。'],
+    home: () => screen(`<div class="scroll pad">${header()}${summary()}${types()}<div class="muted small" style="margin:16px 0 4px">道のり（左右にスワイプ）</div>${path()}${slider()}<div style="margin-top:16px">${streakBig()}</div><div style="height:12px"></div></div>${bottom()}`),
+  },
+  4: {
+    name: '案4 太い棒を横に並べる', points: ['1 課 1 本の太い棒（下からたまる）を横スワイプ。グラフより数字が読みやすく、タップしやすい。', '選んでいる範囲は棒の背景が薄い色に。棒を「始まり→終わり」の順にタップして範囲を選ぶ。', '連続記録は 1 行にして控えめ。'],
+    home: () => screen(`<div class="scroll pad">${header()}${summary()}${types()}<div class="row" style="margin:16px 0 4px"><span class="muted small grow">課（左右にスワイプ・タップで範囲）</span><span class="small acc">全部</span></div>${bigBars()}<div class="row small" style="margin-top:8px"><span class="grow">第1課 〜 第5課</span><span class="muted">${RANGE.count}枚</span></div><div style="margin-top:16px">${streakLine()}</div><div style="height:12px"></div></div>${bottom()}`),
+  },
+  5: {
+    name: '案5 連続記録が主役', points: ['いちばん上に大きな連続記録と今週の7日。毎日開く理由がいちばん強く出る。', 'その下に習得率と、横の道のり（つまみで範囲）。', '習得率より「続けること」を優先した並び。'],
+    home: () => screen(`<div class="scroll pad">${header()}${streakBig()}<div style="margin-top:16px">${summary()}</div>${types()}<div class="row" style="margin:16px 0 4px"><span class="muted small grow">道のり（左右にスワイプ）</span><span class="small acc">全部</span></div>${path({ trim: true })}<div class="row small" style="margin-top:6px"><span class="grow">第1課 〜 第5課</span><span class="muted">${RANGE.count}枚</span></div><div style="height:12px"></div></div>${bottom()}`),
+  },
+};
+
+let cur = 1, pal = 1;
+function render() {
+  const o = OPTIONS[cur];
+  document.getElementById('desc').innerHTML = `<h2>${o.name}</h2><ul>${o.points.map((x) => `<li>${x}</li>`).join('')}</ul><div class="small" style="color:#55565A">ホーム画面をライトとダークで並べています（道のりは実際に横スクロールできます）。課ごとの枚数は実データ、習得率と連続日数はダミー。影・グラデーションなし、アクセント 1 色。</div>`;
+  document.getElementById('stage').innerHTML = ['light', 'dark'].map((t) => `<section><p class="cap">${t === 'light' ? 'ライト' : 'ダーク'}</p>${o.home()}</section>`).join('');
+  document.querySelectorAll('#stage .screen').forEach((el, i) => { for (const [k, v] of Object.entries(PAL[pal][i ? 'dark' : 'light'])) el.style.setProperty('--' + k, v); });
+  document.querySelectorAll('.hscroll').forEach((el) => { el.scrollLeft = 0; });
+  document.querySelectorAll('[data-opt]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.opt) === cur)));
+  document.querySelectorAll('[data-pal]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.pal) === pal)));
+}
+document.querySelectorAll('[data-opt]').forEach((b) => b.addEventListener('click', () => { cur = Number(b.dataset.opt); render(); }));
+document.querySelectorAll('[data-pal]').forEach((b) => b.addEventListener('click', () => { pal = Number(b.dataset.pal); render(); }));
+render();
+</script>
+</body>
+</html>

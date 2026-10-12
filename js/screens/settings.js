@@ -47,6 +47,7 @@ export function settingsScreen() {
       h('div', { class: 'section-title' }, '学習'),
       h('div', { class: 'list' },
         block('1ラウンドの語数', seg('roundSize', [[5, '5'], [7, '7'], [10, '10'], [15, '15']])),
+        block('1日の復習の上限', seg('reviewLimit', [[30, '30枚'], [50, '50枚'], [100, '100枚']]), h('div', { class: 'muted small', style: 'margin-top:6px' }, '表紙の「今日の復習」で、忘れかけている単語から自動で選ぶ枚数')),
         h('div', { style: 'padding:10px 0' }, h('label', { for: 'dir' }, '出題方向'),
           h('select', { id: 'dir', class: 'field', style: 'display:block;width:100%;margin-top:8px', onChange: (e) => set('direction', e.target.value) },
             Object.entries(DIRECTIONS).map(([v, label]) => h('option', { value: v, selected: s.direction === v ? '' : null }, label)))),

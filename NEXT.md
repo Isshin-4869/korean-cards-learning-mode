@@ -1,14 +1,17 @@
 # 再開メモ
 
-## 公開中（v1.0.4）
+## 公開中（v1.0.5）
 - **アプリ：** https://isshin-4869.github.io/korean-cards-learning-mode/
   - リポジトリ：https://github.com/Isshin-4869/korean-cards-learning-mode
-- **デザイン：** 宇宙デザイン案1（課ごとの習得率でドット絵の惑星が育つ）。`js/planet.js`
+- **デザイン：** シンプル（生成り＋青）。惑星とドット書体は外した
+  - 表紙：連続記録・記憶の予測（`js/memory.js`）・今日の復習（`js/review.js`。1日の上限 30／50／100）
+  - 課の選択は「学習する」・各モードの先のページ（`js/screens/start.js`、リング）
+  - 途中のラウンドがあれば「続きから」。新しく始めるときは確認シートを出す
 - **同期：** Firebase（korean-cards-c2e8e）
 - **通知とウィジェットの中継：** Cloudflare Worker `korean-cards-push`（`worker/`）
   - KV：`b11f0fc6f77f4d6db2fa34a3b6d68329`
   - 毎時0分に cron で動く
-- **アイコンのバッジ：** 学習中の枚数。`js/widget.js` の `updateBadge`
+- **アイコンのバッジ：** 今日の復習の残り枚数。`js/widget.js` の `badgeCount` / `updateBadge`
 - **Scriptable ウィジェット：** `widget/scriptable-widget.js`
 
 ## 秘密情報の置き場所（リポジトリには入れない）

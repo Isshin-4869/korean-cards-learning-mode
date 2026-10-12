@@ -3,7 +3,8 @@
 import { h, quizTop, answerInput, iconButton, svg } from '../ui.js';
 import { state, save, saveSession, cardsInRange, currentRangeKey, rangeLabel } from '../state.js';
 import { canSpell, shuffle } from '../deck.js';
-import { markWrongOutsideLearn } from '../progress.js';
+import { markWrongOutsideLearn, markRightOutsideLearn, rec } from '../progress.js';
+import { nextK } from '../memory.js';
 import { speak, speechAvailable, hasKoreanVoice } from '../speech.js';
 import { go } from '../router.js';
 import { judgeWritten, rememberAccepted, writtenFeedback, continueControl } from './common.js';
@@ -60,6 +61,7 @@ export function spellScreen() {
       const result = value ? judgeWritten(card, 'spell', value, [card.term]) : { correct: false };
       const r = { id: card.id, correct: result.correct, given: value, prev: state.progress[card.id] ? { ...state.progress[card.id] } : null };
       if (!r.correct) markWrongOutsideLearn(state.progress, card.id);
+      else markRightOutsideLearn(state.progress, card.id, nextK(rec(state.progress, card.id), true));
       sess.results[sess.i] = r;
       sess.i++;
       save.progress();

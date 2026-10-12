@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>課の見せ方</title>
+<style>
+  /* ---- 見比べ用ページ ---- */
+  html { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Apple SD Gothic Neo", sans-serif; }
+  body { margin: 0; background: #E4E3E0; color: #1B1C1E; }
+  .tools { position: sticky; top: 0; z-index: 10; background: #E4E3E0; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .tools button { font: inherit; font-size: 0.9375rem; min-height: 44px; min-width: 44px; padding: 0 14px; border: 0; border-radius: 10px; background: #D3D2CE; cursor: pointer; }
+  .tools button[aria-pressed="true"] { background: #1B1C1E; color: #fff; }
+  .tools .lbl { font-size: 0.8125rem; color: #55565A; margin-left: 8px; }
+  .desc { max-width: 1100px; padding: 0 16px 8px; font-size: 0.9375rem; line-height: 1.6; }
+  .desc h2 { font-size: 1.125rem; margin: 4px 0; }
+  .desc ul { margin: 4px 0; padding-left: 1.2em; }
+  .stage { display: flex; flex-wrap: wrap; gap: 24px; padding: 8px 16px 48px; align-items: flex-start; }
+  .cap { font-size: 0.8125rem; color: #55565A; margin: 0 0 6px 4px; }
+
+  /* ---- アプリ画面 ---- */
+  .screen { position: relative; width: 390px; max-width: 100%; height: 844px; overflow: hidden; border-radius: 36px; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; font-size: 1.0625rem; line-height: 1.5; }
+  .status { height: 47px; flex: none; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 28px 6px; font-size: 0.9375rem; font-weight: 600; }
+  .homebar { height: 34px; flex: none; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
+  .homebar::after { content: ""; width: 134px; height: 5px; border-radius: 3px; background: var(--fg); opacity: .9; }
+  .pad { padding: 0 16px; }
+  .scroll { flex: 1; overflow: auto; }
+  .muted { color: var(--fg2); }
+  .small { font-size: 0.8125rem; }
+  .tiny { font-size: 0.75rem; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .grow { flex: 1; min-width: 0; }
+  .btn { font: inherit; border: 0; min-height: 48px; border-radius: 14px; background: var(--fill); color: var(--fg); padding: 0 12px; }
+  .btn.primary { background: var(--accent); color: var(--on-accent); font-weight: 600; min-height: 56px; width: 100%; }
+  .acc { color: var(--accent-text); }
+  .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  .modes .btn { font-size: 0.875rem; padding: 0 4px; }
+  .bar { height: 6px; border-radius: 3px; background: var(--fill); display: flex; overflow: hidden; }
+  .bar.thin { height: 4px; }
+  .bar > .m { background: var(--accent); } .bar > .l { background: var(--accent-weak); }
+  .list > * { border-bottom: 1px solid var(--sep); } .list > *:last-child { border-bottom: 0; }
+  .lrow { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 4px 0; }
+  .big { font-size: 1.75rem; font-weight: 700; line-height: 1.15; }
+  .check { width: 24px; height: 24px; border-radius: 50%; background: var(--fill); flex: none; display: flex; align-items: center; justify-content: center; color: var(--on-accent); font-size: 14px; font-weight: 700; }
+  .check.on { background: var(--accent); }
+  .segbtn { display: flex; gap: 6px; } .segbtn span { flex: 1; min-height: 40px; border-radius: 10px; background: var(--fill); display: flex; align-items: center; justify-content: center; font-size: 0.875rem; }
+  .segbtn span.on { background: var(--sel-bg); color: var(--sel-fg); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="tools" role="toolbar">
+  <button data-opt="1">案1</button><button data-opt="2">案2</button><button data-opt="3">案3</button><button data-opt="4">案4</button><button data-opt="5">案5</button>
+  <span class="lbl">色：</span>
+  <button data-pal="1">青</button><button data-pal="2">白黒</button><button data-pal="3">iOS</button><button data-pal="4">青磁</button><button data-pal="5">藍</button>
+</div>
+<div class="desc" id="desc"></div>
+<div class="stage" id="stage"></div>
+
+<script>
+// ---- 実データ（課ごとの枚数は data/cards.md の実数。習得率・学習中はダミー） ----
+const LESSONS = [['第1課', 9, 100, 0], ['第2課', 26, 88, 8], ['第3課', 19, 74, 16], ['第4課', 35, 51, 23], ['第5課', 51, 22, 30], ['第6課', 87, 6, 14], ['第7課', 107, 0, 4], ['第8課', 100, 0, 0], ['第9課', 153, 0, 0], ['第10課', 165, 0, 0], ['第11課', 123, 0, 0], ['第12課', 121, 0, 0], ['第13課', 96, 0, 0], ['第14課', 105, 0, 0], ['第15課', 121, 0, 0], ['第16課', 115, 0, 0], ['第17課', 102, 0, 0], ['第18課', 114, 0, 0], ['第19課', 95, 0, 0], ['第20課', 85, 0, 0], ['第21課', 126, 0, 0], ['第22課', 77, 0, 0], ['会話表現', 82, 10, 5]];
+const SEL = new Set(['第1課', '第2課', '第3課', '第4課', '第5課']);
+const RANGE = { label: '第1〜5課', count: 140, m: 54, l: 22, mc: 76, lc: 31, uc: 33 };
+const short = (n) => (n === '会話表現' ? '会話' : n.replace('第', '').replace('課', ''));
+
+// ---- 色（前回のシンプル案と同じ 5 色） ----
+const PAL = {
+  1: { light: { bg: '#F4F3EF', fg: '#1C1D1F', fg2: '#66676B', sep: '#DAD8D2', fill: '#E7E5E0', accent: '#2F57C9', 'accent-text': '#2F57C9', 'accent-weak': 'rgba(47,87,201,.35)', 'on-accent': '#fff', 'sel-bg': '#2F57C9', 'sel-fg': '#fff', surface: '#FFFFFF' },
+       dark: { bg: '#161719', fg: '#ECECEE', fg2: '#9C9DA2', sep: '#2E2F33', fill: '#25262A', accent: '#87A2FF', 'accent-text': '#87A2FF', 'accent-weak': 'rgba(135,162,255,.35)', 'on-accent': '#0F1630', 'sel-bg': '#87A2FF', 'sel-fg': '#0F1630', surface: '#1F2023' } },
+  2: { light: { bg: '#FFFFFF', fg: '#111111', fg2: '#6E6E6E', sep: '#E6E6E6', fill: '#F1F1F1', accent: '#111111', 'accent-text': '#111111', 'accent-weak': 'rgba(17,17,17,.28)', 'on-accent': '#FFFFFF', 'sel-bg': '#111111', 'sel-fg': '#FFFFFF', surface: '#F7F7F7' },
+       dark: { bg: '#0E0E0E', fg: '#EDEDED', fg2: '#9A9A9A', sep: '#262626', fill: '#1C1C1C', accent: '#EDEDED', 'accent-text': '#EDEDED', 'accent-weak': 'rgba(237,237,237,.3)', 'on-accent': '#0E0E0E', 'sel-bg': '#EDEDED', 'sel-fg': '#0E0E0E', surface: '#161616' } },
+  3: { light: { bg: '#F2F2F7', fg: '#000000', fg2: '#6C6C70', sep: '#E5E5EA', fill: '#E5E5EA', accent: '#007AFF', 'accent-text': '#007AFF', 'accent-weak': 'rgba(0,122,255,.3)', 'on-accent': '#FFFFFF', 'sel-bg': '#007AFF', 'sel-fg': '#FFFFFF', surface: '#FFFFFF' },
+       dark: { bg: '#000000', fg: '#FFFFFF', fg2: '#98989F', sep: '#38383A', fill: '#2C2C2E', accent: '#0A84FF', 'accent-text': '#0A84FF', 'accent-weak': 'rgba(10,132,255,.35)', 'on-accent': '#FFFFFF', 'sel-bg': '#0A84FF', 'sel-fg': '#FFFFFF', surface: '#1C1C1E' } },
+  4: { light: { bg: '#F6F4EE', fg: '#1E2422', fg2: '#68706C', sep: '#DEDBD2', fill: '#EAE7DF', accent: '#2E7663', 'accent-text': '#2E7663', 'accent-weak': 'rgba(46,118,99,.3)', 'on-accent': '#FFFFFF', 'sel-bg': '#D5E6DF', 'sel-fg': '#1F5A4A', surface: '#FFFFFF' },
+       dark: { bg: '#131715', fg: '#E5EAE7', fg2: '#939C97', sep: '#262C29', fill: '#1F2522', accent: '#6CC3AE', 'accent-text': '#6CC3AE', 'accent-weak': 'rgba(108,195,174,.3)', 'on-accent': '#0B1A16', 'sel-bg': '#1E3A33', 'sel-fg': '#8ED6C4', surface: '#1A1F1D' } },
+  5: { light: { bg: '#F5F5F3', fg: '#1A1B1F', fg2: '#6A6B72', sep: '#E1E1DD', fill: '#E9E9E6', accent: '#3F4BA8', 'accent-text': '#3F4BA8', 'accent-weak': 'rgba(63,75,168,.3)', 'on-accent': '#FFFFFF', 'sel-bg': '#3F4BA8', 'sel-fg': '#FFFFFF', surface: '#FFFFFF' },
+       dark: { bg: '#121317', fg: '#E8E9EE', fg2: '#9798A2', sep: '#25262D', fill: '#1E1F26', accent: '#8F9AF0', 'accent-text': '#8F9AF0', 'accent-weak': 'rgba(143,154,240,.3)', 'on-accent': '#10132E', 'sel-bg': '#8F9AF0', 'sel-fg': '#10132E', surface: '#1A1B21' } },
+};
+
+// ---- 部品 ----
+const status = () => '<div class="status"><span>9:41</span><span>●●● ▮</span></div>';
+const screen = (inner) => `<div class="screen">${status()}${inner}<div class="homebar"></div></div>`;
+const bar = (m, l, cls = '') => `<div class="bar ${cls}"><div class="m" style="width:${m}%"></div><div class="l" style="width:${l}%"></div></div>`;
+const header = () => `<div class="row" style="min-height:52px"><span class="grow" style="font-size:1.375rem;font-weight:700">韓国語カード</span><span class="muted">⚙</span></div>`;
+const summary = () => `<div class="row" style="align-items:flex-end;margin:4px 0 8px"><div class="grow"><div class="muted small">${RANGE.label} · ${RANGE.count}枚</div><div class="big">${RANGE.m}%<span class="muted" style="font-size:0.9375rem;font-weight:400"> 習得</span></div></div><div class="muted small" style="text-align:right">学習中 ${RANGE.lc}<br>未学習 ${RANGE.uc}</div></div>${bar(RANGE.m, RANGE.l)}`;
+const types = () => `<div class="segbtn" style="margin:16px 0 8px"><span class="on">単語</span><span class="on">文法</span><span class="on">会話表現</span></div>`;
+const bottom = () => `<div class="pad" style="padding-top:12px"><button class="btn primary">学習 · ${RANGE.count}枚</button><div class="modes">${['単語カード', 'テスト', 'スペル', 'マッチ'].map((m) => `<button class="btn">${m}</button>`).join('')}</div></div>`;
+const ring = (pct, size = 44, sel = false) => {
+  const r = (size - 6) / 2, c = 2 * Math.PI * r;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${sel ? 'var(--sel-bg)' : 'none'}" stroke="var(--fill)" stroke-width="4"/>${pct ? `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${sel ? 'var(--sel-fg)' : 'var(--accent)'}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(c * pct) / 100} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/>` : ''}</svg>`;
+};
+
+// ---- 案 ----
+const OPTIONS = {
+  1: {
+    name: '案1 一覧（区切り線 1 本）', points: ['課を 1 行ずつ。左の丸で範囲に入れる・外す、右に細いバーと習得率と枚数。', '四角で囲まず、区切り線だけ。文字が大きくなっても崩れにくい。', '23 課あるので縦に長くなる（スクロール）。'],
+    home: () => screen(`<div class="scroll pad">${header()}${summary()}${types()}
+      <div class="row" style="margin:8px 0 0"><span class="muted small grow">課</span><span class="small acc">範囲指定　全部</span></div>
+      <div class="list">${LESSONS.map(([n, t, m, l]) => `<div class="lrow"><span class="check ${SEL.has(n) ? 'on' : ''}">${SEL.has(n) ? '✓' : ''}</span><span style="width:4.6em">${n}</span><div class="grow">${bar(m, l, 'thin')}</div><span class="muted small" style="width:2.6em;text-align:right">${m}%</span><span class="muted tiny" style="width:2.8em;text-align:right">${t}枚</span></div>`).join('')}</div>
+      <div style="height:12px"></div></div>${bottom()}`),
+  },
+  2: {
+    name: '案2 リング（円の進捗を並べる）', points: ['課ごとに小さな円グラフ。円の中に課の番号、円の線が習得率。', '選択中は円が塗りつぶされる。6 列で 4 段に収まり、四角よりも軽く見える。', '%の数字は出さず、形だけで「どこまで進んだか」が分かる。'],
+    home: () => screen(`<div class="scroll pad">${header()}${summary()}${types()}
+      <div class="row" style="margin:8px 0 12px"><span class="muted small grow">課（タップで範囲に入れる・外す）</span><span class="small acc">範囲指定　全部</span></div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);row-gap:12px;justify-items:center">${LESSONS.map(([n, t, m]) => `<div style="position:relative;width:52px;display:flex;flex-direction:column;align-items:center">${ring(m, 48, SEL.has(n))}<span style="position:absolute;top:0;height:48px;display:flex;align-items:center;font-size:0.9375rem;font-weight:600;${SEL.has(n) ? 'color:var(--sel-fg)' : ''}">${short(n)}</span><span class="muted tiny">${m}%</span></div>`).join('')}</div>
+      <div style="height:12px"></div></div>${bottom()}`),
+  },
+  3: {
+    name: '案3 グラフ＋範囲スライダー', points: ['23 課を縦棒グラフで 1 枚に。棒の高さが習得率、薄い部分が学習中。', '範囲は下のスライダーの 2 つのつまみで「何課から何課まで」を選ぶ。', 'ホームがいちばん短く収まり、全体の進み具合がひと目で分かる。飛び飛びの課は選べない。'],
+    home: () => {
+      const H = 120;
+      const bars = LESSONS.map(([n, t, m, l]) => `<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:${H}px;background:${SEL.has(n) ? 'var(--fill)' : 'transparent'};border-radius:3px"><div style="height:${(l / 100) * H}px;background:var(--accent-weak)"></div><div style="height:${Math.max(2, (m / 100) * H)}px;background:${m ? 'var(--accent)' : 'var(--sep)'}"></div></div>`).join('');
+      return screen(`<div class="scroll pad">${header()}${summary()}${types()}
+        <div class="muted small" style="margin:8px 0 8px">課ごとの習得率</div>
+        <div style="display:flex;gap:3px;align-items:flex-end">${bars}</div>
+        <div class="row tiny muted" style="justify-content:space-between;margin-top:4px"><span>1</span><span>5</span><span>10</span><span>15</span><span>20</span><span>会話</span></div>
+        <div style="position:relative;height:44px;margin-top:12px"><div style="position:absolute;left:0;right:0;top:20px;height:4px;border-radius:2px;background:var(--fill)"></div><div style="position:absolute;left:0;width:22%;top:20px;height:4px;border-radius:2px;background:var(--accent)"></div>
+          <div style="position:absolute;left:-2px;top:8px;width:28px;height:28px;border-radius:50%;background:var(--accent)"></div><div style="position:absolute;left:calc(22% - 14px);top:8px;width:28px;height:28px;border-radius:50%;background:var(--accent)"></div></div>
+        <div class="row small"><span class="grow">第1課 〜 第5課</span><span class="muted">${RANGE.count}枚</span></div>
+        <div class="muted tiny" style="margin-top:12px">会話表現だけを選ぶときは、つまみを右端の「会話」に寄せる</div>
+      </div>${bottom()}`);
+    },
+  },
+  4: {
+    name: '案4 まとまりで選ぶ（5 課ずつの段）', points: ['「第1〜5課」「第6〜10課」…とまとまりで 1 行。行をタップで範囲に入れる。', '右の「›」で開くと、その中の課を 1 つずつ選べる（いちばん上の段を開いた状態）。', '行は 5 つだけなので、ホームが短い。教科書を順に進めるならこれで十分。'],
+    home: () => {
+      const groups = [['第1〜5課', 0, 5], ['第6〜10課', 5, 10], ['第11〜15課', 10, 15], ['第16〜22課', 15, 22], ['会話表現', 22, 23]];
+      const stat = (a, b) => { const ls = LESSONS.slice(a, b); const t = ls.reduce((s, x) => s + x[1], 0); const m = Math.round(ls.reduce((s, x) => s + x[1] * x[2], 0) / t); const l = Math.round(ls.reduce((s, x) => s + x[1] * x[3], 0) / t); return { t, m, l }; };
+      return screen(`<div class="scroll pad">${header()}${summary()}${types()}
+        <div class="list" style="margin-top:4px">${groups.map(([g, a, b], gi) => { const s = stat(a, b); const on = gi === 0; return `<div><div class="lrow" style="min-height:60px"><span class="check ${on ? 'on' : ''}">${on ? '✓' : ''}</span><div class="grow"><div class="row"><span class="grow" style="font-weight:600">${g}</span><span class="muted small">${s.m}% · ${s.t}枚</span></div>${bar(s.m, s.l, 'thin')}</div><span class="muted" style="width:20px;text-align:center">${gi === 0 ? '⌄' : '›'}</span></div>
+          ${gi === 0 ? `<div style="padding:0 0 10px 36px;display:flex;gap:6px;flex-wrap:wrap">${LESSONS.slice(a, b).map(([n, t, m]) => `<span style="min-height:36px;padding:0 10px;border-radius:18px;display:inline-flex;align-items:center;gap:6px;font-size:0.875rem;background:var(--sel-bg);color:var(--sel-fg)">${n} <span style="opacity:.8">${m}%</span></span>`).join('')}</div>` : ''}</div>`; }).join('')}</div>
+        <div style="height:12px"></div></div>${bottom()}`);
+    },
+  },
+  5: {
+    name: '案5 道のり（縦の線で順番に）', points: ['教科書の順番を 1 本の線で。習得した課は塗りつぶしの丸、途中の課は半分、まだの課は空の丸。', '「いまここ」（最初の未完了の課）に印。選んでいる範囲は線の横に色の帯。', '進む方向がはっきりして、達成感が出る。一覧と同じく縦に長い。'],
+    home: () => {
+      const here = LESSONS.findIndex((x) => x[2] < 100);
+      return screen(`<div class="scroll pad">${header()}${summary()}${types()}
+        <div class="row" style="margin:8px 0 4px"><span class="muted small grow">道のり</span><span class="small acc">範囲指定　全部</span></div>
+        <div>${LESSONS.map(([n, t, m, l], i) => { const on = SEL.has(n); const dot = m >= 100 ? 'background:var(--accent)' : m > 0 || l > 0 ? 'background:var(--accent-weak)' : 'background:var(--fill)'; return `<div class="row" style="min-height:48px;gap:10px;position:relative">
+          <div style="width:4px;align-self:stretch;background:${on ? 'var(--accent)' : 'transparent'};border-radius:2px"></div>
+          <div style="width:20px;align-self:stretch;position:relative;display:flex;justify-content:center"><div style="position:absolute;top:${i === 0 ? '50%' : 0};bottom:${i === LESSONS.length - 1 ? '50%' : 0};width:2px;background:var(--sep)"></div><div style="position:relative;margin:auto 0;width:16px;height:16px;border-radius:50%;${dot}"></div></div>
+          <span class="grow" style="${i === here ? 'font-weight:700' : ''}">${n}${i === here ? ' <span class="small acc">いまここ</span>' : ''}</span><span class="muted small">${m}%</span><span class="muted tiny" style="width:2.8em;text-align:right">${t}枚</span></div>`; }).join('')}</div>
+        <div style="height:12px"></div></div>${bottom()}`);
+    },
+  },
+};
+
+let cur = 1, pal = 1;
+function render() {
+  const o = OPTIONS[cur];
+  document.getElementById('desc').innerHTML = `<h2>${o.name}</h2><ul>${o.points.map((x) => `<li>${x}</li>`).join('')}</ul><div class="small" style="color:#55565A">ホーム画面だけを、ライトとダークで並べています。課ごとの枚数は実データ、習得率はダミー。影・グラデーションなし、アクセント 1 色。</div>`;
+  document.getElementById('stage').innerHTML = ['light', 'dark'].map((t) => `<section><p class="cap">${t === 'light' ? 'ライト' : 'ダーク'}</p>${o.home()}</section>`).join('');
+  document.querySelectorAll('#stage .screen').forEach((el, i) => { for (const [k, v] of Object.entries(PAL[pal][i ? 'dark' : 'light'])) el.style.setProperty('--' + k, v); });
+  document.querySelectorAll('[data-opt]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.opt) === cur)));
+  document.querySelectorAll('[data-pal]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.pal) === pal)));
+}
+document.querySelectorAll('[data-opt]').forEach((b) => b.addEventListener('click', () => { cur = Number(b.dataset.opt); render(); }));
+document.querySelectorAll('[data-pal]').forEach((b) => b.addEventListener('click', () => { pal = Number(b.dataset.pal); render(); }));
+render();
+</script>
+</body>
+</html>

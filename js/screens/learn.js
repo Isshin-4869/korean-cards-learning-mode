@@ -1,38 +1,59 @@
 // モード1: 学習（Quizlet の Learn）
 
 import { h, quizTop, promptBlock, choiceGrid, markChoices, answerInput, progressBar } from '../ui.js';
-import { state, save, saveSession, cardsInRange, currentRangeKey } from '../state.js';
+import { state, save, saveSession, cardsInRange, currentRangeKey, rangeLabel } from '../state.js';
 import { canWrite } from '../deck.js';
 import { pickRoundCards, pickReviewCards, newRound, applyAnswer, undoAnswer, roundDone, roundSummary, directionFor } from '../learn.js';
 import { summarize } from '../progress.js';
-import { STAGE_UP, stageOfSummary, planetCanvas, rangePlanetName } from '../planet.js';
+import { todayReview } from '../review.js';
+import { addReview } from '../streak.js';
+import { jstDate } from '../memory.js';
 import { go } from '../router.js';
 import { judgeWritten, rememberAccepted, writtenFeedback, continueControl, autoSpeak, choiceKeys } from './common.js';
 
 const STATUS_LABEL = { mastered: '習得', learning: '学習中', review: '要復習' };
 
-/** params.ids があれば、その単語だけで学習する（テストで間違えた単語など） */
+/**
+ * params.resume: 保存した途中経過から続ける（「学習する」ページの「続きから」）
+ * params.review: 今日の復習（記憶の見込みが下がった単語を自動で選ぶ）
+ * params.ids: その単語だけで学習する（テストで間違えた単語など）
+ * どれもなければ、いま選んでいる範囲で新しく始める（途中経過は捨てる。確認は「学習する」ページで出す）
+ */
 export function learnScreen(params = {}) {
   const deck = state.deck;
   const settings = state.settings;
-  const scope = params.ids ? { ids: params.ids } : { range: currentRangeKey() };
-  let sess = state.sessions.learn;
-  if (!sess || JSON.stringify(sess.scope) !== JSON.stringify(scope)) sess = null;
+  let sess = params.resume ? state.sessions.learn : null;
+  const scope = sess?.scope ?? (params.review ? { review: jstDate(Date.now()) } : params.ids ? { ids: params.ids } : { range: currentRangeKey() });
+  const isReview = !!scope.review;
+  // 今日の復習は、始めた時点で選んだ単語（上限まで）を順にラウンドに分けて出す
+  if (isReview && !sess) sess = { scope, plan: todayReview(state).cards.map((c) => c.id), counted: [], phase: 'new' };
 
-  const pool = () => (scope.ids ? scope.ids.map((id) => deck.get(id)).filter(Boolean) : cardsInRange());
-  const persist = () => saveSession('learn', sess);
+  const pool = () => (scope.ids ? scope.ids.map((id) => deck.get(id)).filter(Boolean) : isReview ? sess.plan.map((id) => deck.get(id)).filter(Boolean) : cardsInRange());
+  // 「学習する」ページの「続きから」に出す名前と時刻も一緒に保存する
+  const label = isReview ? '今日の復習' : scope.ids ? '選んだ単語' : `${rangeLabel()} · ${state.selection.types.join('・')}`;
+  const persist = () => {
+    if (sess) Object.assign(sess, { label: sess.label ?? label, savedAt: Date.now() });
+    return saveSession('learn', sess);
+  };
   const exit = () => go('home');
   const root = h('div');
   const show = (...kids) => root.replaceChildren(...kids.flat().filter(Boolean));
   const focusLater = (input) => (root.isConnected ? input.focus() : (root.onMounted = () => input.focus()));
 
   function startRound(review = false) {
+    if (isReview) {
+      const counted = new Set(sess.counted);
+      const picked = sess.plan.filter((id) => !counted.has(id)).slice(0, settings.roundSize).map((id) => deck.get(id)).filter(Boolean);
+      if (!picked.length) return reviewDone();
+      sess = { ...sess, round: newRound(picked, state.progress), phase: 'q' };
+      persist();
+      return showQuestion();
+    }
     const cards = pool();
     let picked = pickRoundCards(cards, state.progress, settings.roundSize);
     if (!picked.length && review) picked = pickReviewCards(cards, state.progress, settings.roundSize);
     if (!picked.length) return allDone(cards.length);
-    // ラウンド開始時の惑星の段階（まとめで育ったかを見るため。再開しても残るようセッションに持つ）
-    sess = { scope, round: newRound(picked, state.progress), phase: 'q', stageBefore: stageOfSummary(summarize(cards, state.progress)) };
+    sess = { scope, round: newRound(picked, state.progress), phase: 'q' };
     persist();
     showQuestion();
   }
@@ -109,7 +130,14 @@ export function learnScreen(params = {}) {
   }
 
   function record(correct) {
+    const id = sess.round.queue[sess.round.pos].id;
     const undo = applyAnswer(sess.round, state.progress, correct, { needWritten: settings.needWritten });
+    // 今日の復習で、その単語を初めて答えたら「今日復習した枚数」に数える（1日の上限に使う）
+    if (isReview && !sess.counted.includes(id)) {
+      sess.counted.push(id);
+      addReview(state.days);
+      save.days();
+    }
     save.progress();
     persist();
     return undo;
@@ -133,20 +161,9 @@ export function learnScreen(params = {}) {
     const all = summarize(pool(), state.progress);
     const order = { review: 0, learning: 1, mastered: 2 };
     sum.sort((a, b) => order[a.status] - order[b.status]);
-    // 範囲の惑星: 段階が上がったときだけ「前 → 後」を見せる
-    const planet = scope.range ? rangePlanetName(scope.range) : 'words';
-    const stage = stageOfSummary(all);
-    const grew = sess.stageBefore != null && stage > sess.stageBefore;
-    const pct = all.total ? Math.floor((all.mastered / all.total) * 100) : 0;
-    const after = grew ? planetCanvas(planet, stage, 110) : null;
-    after?.classList.add('grown');
     show(
-      h('div', { class: 'top' }, h('h1', { class: 'grow' }, 'ラウンド完了'), grew ? null : planetCanvas(planet, stage, 40)),
+      h('div', { class: 'top' }, h('h1', { class: 'grow' }, 'ラウンド完了')),
       h('div', { class: 'scroll' },
-        grew ? [
-          h('div', { class: 'grow-up' }, planetCanvas(planet, sess.stageBefore, 88), h('span', { class: 'muted', 'aria-hidden': 'true' }, '→'), after),
-          h('div', { class: 'grow-msg' }, `${STAGE_UP[stage]}（習得 `, h('span', { class: 'dot' }, `${pct}%`), '）'),
-        ] : null,
         h('div', { class: 'list' }, sum.map(({ id, status }) => {
           const c = deck.get(id);
           if (!c) return null;
@@ -154,12 +171,18 @@ export function learnScreen(params = {}) {
             h('div', { class: 'grow' }, h('div', { class: 'ko', lang: 'ko' }, c.term), h('div', { class: 'muted small' }, c.definition)),
             h('span', { class: `st ${status}` }, STATUS_LABEL[status]));
         })),
-        h('div', { class: 'section-title' }, scope.ids ? '選んだ単語全体の進捗' : '範囲全体の進捗'),
-        progressBar(all.mastered, all.learning, all.total),
-        h('div', { class: 'muted small', style: 'margin-top:6px' }, `習得 ${all.mastered} · 学習中 ${all.learning} · 未学習 ${all.unseen}（全${all.total}）`),
+        isReview ? [
+          h('div', { class: 'section-title' }, '今日の復習'),
+          progressBar(sess.counted.length, 0, sess.plan.length),
+          h('div', { class: 'muted small', style: 'margin-top:6px' }, `${sess.counted.length} / ${sess.plan.length} 枚`),
+        ] : [
+          h('div', { class: 'section-title' }, scope.ids ? '選んだ単語全体の進捗' : '範囲全体の進捗'),
+          progressBar(all.mastered, all.learning, all.total),
+          h('div', { class: 'muted small', style: 'margin-top:6px' }, `習得 ${all.mastered} · 学習中 ${all.learning} · 未学習 ${all.unseen}（全${all.total}）`),
+        ],
         h('div', { style: 'height:16px' })),
       h('div', { class: 'bottom stack' },
-        h('button', { class: 'btn primary', onClick: () => startRound() }, '次のラウンドへ'),
+        h('button', { class: 'btn primary', onClick: () => startRound() }, isReview && sess.counted.length >= sess.plan.length ? '復習を終える' : '次のラウンドへ'),
         h('button', { class: 'btn text block', onClick: () => { saveSession('learn', null); exit(); } }, 'ホームへ')));
   }
 
@@ -170,14 +193,26 @@ export function learnScreen(params = {}) {
       h('div', { class: 'top' }, h('button', { class: 'btn text', onClick: exit }, '戻る')),
       h('div', { class: 'fill center', style: 'text-align:center' },
         h('h2', null, total ? 'この範囲はすべて習得しました' : 'この範囲にカードがありません'),
-        h('p', { class: 'muted' }, total ? '習得済みの単語を記述で復習できます。間違えた単語は学習中に戻ります。' : 'ホームで課と種別を選んでください。')),
+        h('p', { class: 'muted' }, total ? '習得済みの単語を記述で復習できます。間違えた単語は学習中に戻ります。' : '「学習する」で課と種別を選んでください。')),
       h('div', { class: 'bottom stack' },
         total ? h('button', { class: 'btn primary', onClick: () => startRound(true) }, '習得済みから復習') : null,
         h('button', { class: 'btn text block', onClick: exit }, 'ホームへ')));
   }
 
-  // 初回の表示（保存された途中経過があれば続きから）
-  if (!sess) startRound();
+  function reviewDone() {
+    const n = sess.counted.length;
+    sess = null;
+    saveSession('learn', null);
+    show(
+      h('div', { class: 'top' }, h('button', { class: 'btn text', onClick: exit }, '戻る')),
+      h('div', { class: 'fill center', style: 'text-align:center' },
+        h('h2', null, n ? '今日の復習が終わりました' : '今日の復習はありません'),
+        h('p', { class: 'muted' }, n ? `${n} 枚を復習しました。` : '忘れかけている単語はありません。「学習する」で新しい単語を進めましょう。')),
+      h('div', { class: 'bottom stack' }, h('button', { class: 'btn primary', onClick: exit }, 'ホームへ')));
+  }
+
+  // 初回の表示（「続きから」なら保存された途中経過から）
+  if (!sess || sess.phase === 'new' || !sess.round) startRound();
   else if (sess.phase === 'summary' || roundDone(sess.round)) showSummary();
   else showQuestion();
   return root;

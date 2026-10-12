@@ -3,6 +3,7 @@
 import { lessonOrder } from './cards.js';
 import { shuffle, canWrite } from './deck.js';
 import { rec, put, UNSEEN, LEARNING, MASTERED } from './progress.js';
+import { nextK } from './memory.js';
 
 export const REVIEW_SHARE = 0.6; // 次のラウンドで「間違いが多い・学習中」に割く割合
 export const RETRY_GAP = 2; // 間違えた単語を何問後に出し直すか
@@ -74,7 +75,8 @@ export const roundDone = (round) => round.pos >= round.queue.length;
 export function applyAnswer(round, progress, correct, { needWritten = 1 } = {}) {
   const item = round.queue[round.pos];
   const undo = { pos: round.pos, rec: progress[item.id] ? { ...progress[item.id] } : undefined, missed: round.missed[item.id], queueLen: round.queue.length, queue: round.queue.slice() };
-  const r = rec(progress, item.id);
+  const r0 = rec(progress, item.id);
+  const r = { ...r0, k: nextK(r0, correct) };
   if (!item.retry) {
     if (item.type === 'mc') {
       put(progress, item.id, correct ? { ...r, s: LEARNING, wc: 0 } : { ...r, s: UNSEEN, w: r.w + 1, wc: 0 });

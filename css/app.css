@@ -1,28 +1,25 @@
 /* 韓国語カード — UIデザイン方針は CLAUDE.md を参照 */
 
+/* 色はここだけで決める（ライト・ダーク各 1 色の背景、アクセント 1 色） */
 :root {
-  --bg: #F4F3EF; --fg: #1C1D1F; --fg2: #66676B; --sep: #DAD8D2; --fill: #E7E5E0; --fill-press: #DCDAD4;
-  --accent: #8A5A00; --accent-weak: rgba(138, 90, 0, 0.35); --on-accent: #fff;
+  --bg: #F4F3EF; --fg: #1C1D1F; --fg2: #66676B; --sep: #DAD8D2; --fill: #E7E5E0; --fill-press: #DCDAD4; --surface: #FFFFFF;
+  --accent: #2F57C9; --accent-weak: rgba(47, 87, 201, 0.35); --accent-soft: rgba(47, 87, 201, 0.12); --on-accent: #fff;
   --ok: #1C7F46; --ok-bg: #DDEFE3; --ng: #B8322F; --ng-bg: #F6E0DE;
-  --star: transparent; --stars: none;
   --app-h: 100dvh; --vv-top: 0px;
   --ko: "Gowun Batang", "Apple SD Gothic Neo", -apple-system, sans-serif;
-  --dot: "DotGothic16", -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #0E1020; --fg: #ECEAF4; --fg2: #9A98AE; --sep: #23263A; --fill: #1A1D31; --fill-press: #23263E;
-  --accent: #F2C94C; --accent-weak: rgba(242, 201, 76, 0.35); --on-accent: #1A1406;
-  --ok: #6FD39A; --ok-bg: #16301F; --ng: #FF7B72; --ng-bg: #3A1D1C;
-  --star: rgba(255, 255, 255, 0.22); --stars: block;
+  --bg: #161719; --fg: #ECECEE; --fg2: #9C9DA2; --sep: #2E2F33; --fill: #25262A; --fill-press: #2F3035; --surface: #1F2023;
+  --accent: #87A2FF; --accent-weak: rgba(135, 162, 255, 0.35); --accent-soft: rgba(135, 162, 255, 0.16); --on-accent: #0F1630;
+  --ok: #5CC88A; --ok-bg: #18301F; --ng: #FF7B72; --ng-bg: #3A1D1C;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0E1020; --fg: #ECEAF4; --fg2: #9A98AE; --sep: #23263A; --fill: #1A1D31; --fill-press: #23263E;
-    --accent: #F2C94C; --accent-weak: rgba(242, 201, 76, 0.35); --on-accent: #1A1406;
-    --ok: #6FD39A; --ok-bg: #16301F; --ng: #FF7B72; --ng-bg: #3A1D1C;
-    --star: rgba(255, 255, 255, 0.22); --stars: block;
+    --bg: #161719; --fg: #ECECEE; --fg2: #9C9DA2; --sep: #2E2F33; --fill: #25262A; --fill-press: #2F3035; --surface: #1F2023;
+    --accent: #87A2FF; --accent-weak: rgba(135, 162, 255, 0.35); --accent-soft: rgba(135, 162, 255, 0.16); --on-accent: #0F1630;
+    --ok: #5CC88A; --ok-bg: #18301F; --ng: #FF7B72; --ng-bg: #3A1D1C;
     color-scheme: dark;
   }
 }
@@ -56,8 +53,7 @@ body.kb .screen > .bottom { padding-bottom: 8px; }
 .grow { flex: 1; min-width: 0; }
 .wrap { flex-wrap: wrap; }
 .stack > * + * { margin-top: 8px; }
-h1 { font-size: 1.375rem; margin: 0; font-weight: 400; font-family: var(--dot); letter-spacing: 0.02em; }
-.dot { font-family: var(--dot); }
+h1 { font-size: 1.375rem; margin: 0; font-weight: 700; }
 h2 { font-size: 1.125rem; margin: 0; font-weight: 700; }
 .section-title { font-size: 0.8125rem; color: var(--fg2); margin: 20px 0 8px; }
 
@@ -84,34 +80,38 @@ h2 { font-size: 1.125rem; margin: 0; font-weight: 700; }
 .seg > i { flex: 1; height: 4px; border-radius: 2px; background: var(--fill); }
 .seg > i.on { background: var(--accent); }
 
-/* 惑星（習得率の見える化）。ドットをにじませずに拡大する */
-canvas.planet { display: block; flex: none; image-rendering: pixelated; image-rendering: crisp-edges; }
-.home-planet { display: flex; flex-direction: column; align-items: center; margin: 4px 0 8px; text-align: center; }
-.home-planet .muted { margin-top: 6px; }
-.grow-up { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 8px 0; }
-.grow-msg { text-align: center; color: var(--accent); margin-bottom: 12px; }
-
-/* ホームの背景の星（ダークのときだけ。位置は番号で固定、タップは拾わない） */
-.stars { display: var(--stars); position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
-.stars i { position: absolute; width: 1px; height: 1px; background: var(--star); }
-.stars i.b { width: 2px; height: 2px; }
-.screen.home > :not(.stars) { position: relative; z-index: 1; }
-
 /* ヘッダー */
 .top { display: flex; align-items: center; gap: 8px; min-height: 52px; }
 
 /* 統計 */
 .stats { display: flex; gap: 24px; margin: 8px 0 12px; }
-.stats b { display: block; font-size: 1.75rem; line-height: 1.15; font-family: var(--dot); font-weight: 400; }
+.stats b { display: block; font-size: 1.75rem; line-height: 1.15; }
 .stats .acc { color: var(--accent); }
 
-/* 課タイル（背景色の差だけ） */
-.lgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.ltile { border: 0; background: var(--fill); border-radius: 12px; min-height: 64px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; min-width: 0; overflow-wrap: anywhere; text-align: center; }
-.ltile:active { background: var(--fill-press); }
-.ltile[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
-.ltile[aria-pressed="true"] .muted { color: var(--on-accent); opacity: 0.9; }
-.ltile.anchor { background: var(--accent-weak); }
+/* ホーム: まとまりは背景色の差だけ（枠線・影なし） */
+.card { background: var(--surface); border-radius: 16px; padding: 14px 16px; }
+.card + .card { margin-top: 12px; }
+.streak-num { font-size: 2.75rem; font-weight: 800; line-height: 1; color: var(--accent); }
+.streak-num small { font-size: 1.125rem; font-weight: 700; }
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; margin-top: 12px; }
+.week .d { min-height: 32px; border-radius: 8px; background: var(--fill); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--fg2); margin-top: 2px; }
+.week .d.on { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.week .d.today { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-size: 11px; fill: var(--fg2); }
+
+/* 課のリング（丸の中に番号。線の長さが習得率） */
+.rings { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 8px 4px; justify-items: center; }
+.ring { position: relative; width: 52px; height: 52px; border: 0; padding: 0; background: none; color: var(--fg); cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.9375rem; }
+.ring svg { position: absolute; inset: 2px; }
+.ring span { position: relative; }
+.ring[aria-pressed="true"] { color: var(--on-accent); }
+.ring.anchor span { text-decoration: underline 2px; text-underline-offset: 3px; }
+
+/* 下から出る確認シート（本当に浮いているので影を付ける） */
+.scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 5; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-radius: 20px 20px 0 0; padding: 20px 16px max(12px, env(safe-area-inset-bottom)); box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18); }
+.btn.danger { background: var(--ng); color: #fff; font-weight: 600; min-height: 52px; width: 100%; }
 
 /* 区切り線1本の一覧 */
 .list > * { border-bottom: 1px solid var(--sep); }
@@ -193,15 +193,13 @@ select.field { appearance: none; -webkit-appearance: none; width: auto; min-widt
 .hidden-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .notice { padding: 12px 0; }
 
-/* アニメーション（画面遷移・押した反応・カードの表裏・マッチのタイルが消える・惑星が育った瞬間）。視差効果を減らす設定ではなし */
+/* アニメーション（画面遷移・押した反応・カードの表裏・マッチのタイルが消える）。視差効果を減らす設定ではなし */
 @media (prefers-reduced-motion: no-preference) {
   .screen.enter { animation: screen-in 0.2s ease-out; }
   @keyframes screen-in { from { opacity: 0; transform: translateY(8px); } }
-  .btn, .choice, .ltile, .tile { transition: background-color 0.2s, filter 0.2s; }
+  .btn, .choice, .tile { transition: background-color 0.2s, filter 0.2s; }
   .flash.animate { transition: transform 0.2s ease-out; }
   .tile.vanish { animation: tile-out 0.2s ease-in forwards; }
-  .planet.grown { animation: planet-in 0.2s ease-out; }
-  @keyframes planet-in { from { opacity: 0; transform: scale(0.8); } }
   @keyframes tile-out { to { opacity: 0; transform: scale(0.85); } }
 }
 .answer-box .miss { text-decoration: underline 2px; text-underline-offset: 3px; font-weight: 700; }

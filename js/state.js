@@ -5,7 +5,7 @@ import { Store } from './store.js';
 import { parseCardsMarkdown, lessonsOf, TYPES } from './cards.js';
 import { Deck, rangeKey } from './deck.js';
 
-export const APP_VERSION = '1.0.4';
+export const APP_VERSION = '1.0.5';
 export const BACKUP_FORMAT = 'korean-cards-backup';
 
 export const DEFAULT_SETTINGS = {
@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = {
   theme: 'auto',
   flashFront: 'ko',
   flashShuffle: false,
+  reviewLimit: 50, // 1日に復習する上限（30 / 50 / 100）
 };
 
 export const state = {
@@ -30,6 +31,7 @@ export const state = {
   flash: {}, // 単語カードの「覚えた」印（進捗とは別）
   matchBest: {},
   accepted: {}, // 「正解にする」で覚えた答え: cardId → { ko: [...], ja: [...] }
+  days: {}, // 学習した日: 'YYYY-MM-DD'（日本時間）→ { a: 答えた数, r: 復習した枚数 }
   sessions: {}, // mode → 途中経過
   cardsSource: 'bundled',
   // 同期用: キーごとの最終更新時刻と、進捗をリセットした時刻（端末内だけに保存）
@@ -37,7 +39,7 @@ export const state = {
 };
 
 // クラウドと同期するキー（途中経過のセッションは端末内だけ）
-export const SYNC_KEYS = ['settings', 'selection', 'progress', 'flash', 'matchBest', 'accepted'];
+export const SYNC_KEYS = ['settings', 'selection', 'progress', 'flash', 'matchBest', 'accepted', 'days'];
 
 const changeListeners = new Set();
 export const onChange = (fn) => changeListeners.add(fn);
@@ -76,8 +78,8 @@ export function setCards(cards) {
 }
 
 export async function loadState() {
-  const [settings, selection, progress, flash, matchBest, accepted] = await Promise.all(
-    ['settings', 'selection', 'progress', 'flash', 'matchBest', 'accepted'].map((k) => Store.get(k)),
+  const [settings, selection, progress, flash, matchBest, accepted, days] = await Promise.all(
+    ['settings', 'selection', 'progress', 'flash', 'matchBest', 'accepted', 'days'].map((k) => Store.get(k)),
   );
   state.settings = { ...DEFAULT_SETTINGS, ...(settings ?? {}) };
   if (selection) state.selection = selection;
@@ -85,6 +87,7 @@ export async function loadState() {
   state.flash = flash ?? {};
   state.matchBest = matchBest ?? {};
   state.accepted = accepted ?? {};
+  state.days = days ?? {};
   state.syncMeta = { updated: {}, resetAt: 0, ...((await Store.get('syncMeta')) ?? {}) };
   for (const m of ['learn', 'flash', 'test', 'spell']) state.sessions[m] = (await Store.get('session:' + m)) ?? null;
   await loadCards();
@@ -134,6 +137,7 @@ export function makeBackup() {
     flash: state.flash,
     matchBest: state.matchBest,
     accepted: state.accepted,
+    days: state.days,
   };
 }
 
@@ -148,7 +152,8 @@ export async function restoreBackup(obj) {
   state.flash = obj.flash ?? {};
   state.matchBest = obj.matchBest ?? {};
   state.accepted = obj.accepted ?? {};
-  await Promise.all([save.settings(), save.selection(), save.progress(), save.flash(), save.matchBest(), save.accepted()]);
+  state.days = obj.days ?? state.days;
+  await Promise.all([save.settings(), save.selection(), save.progress(), save.flash(), save.matchBest(), save.accepted(), save.days()]);
   for (const m of Object.keys(state.sessions)) await saveSession(m, null);
 }
 

@@ -4,7 +4,8 @@ import { h, quizTop, promptBlock, choiceGrid, answerInput, fmtTime, iconButton }
 import { state, save, saveSession, cardsInRange, currentRangeKey, rangeLabel } from '../state.js';
 import { answerText, promptText, textKey } from '../deck.js';
 import { buildTest, testItemCount, TEST_FORMATS } from '../quiz.js';
-import { markWrongOutsideLearn } from '../progress.js';
+import { markWrongOutsideLearn, markRightOutsideLearn, rec } from '../progress.js';
+import { nextK } from '../memory.js';
 import { go, listen } from '../router.js';
 import { judgeWritten, rememberAccepted, autoSpeak, choiceKeys } from './common.js';
 
@@ -63,6 +64,7 @@ export function testScreen() {
     for (const r of results) {
       r.prev = state.progress[r.id] ? { ...state.progress[r.id] } : null;
       if (!r.correct) markWrongOutsideLearn(state.progress, r.id);
+      else markRightOutsideLearn(state.progress, r.id, nextK(rec(state.progress, r.id), true));
     }
     sess.answers[sess.i] = results;
     sess.elapsed += performance.now() - shownAt;
