@@ -14,6 +14,7 @@ import { normalizeForCompare } from '../js/answer.js';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const engine = process.env.E2E_BROWSER === 'webkit' ? 'webkit' : 'chromium';
 const outDir = path.join(root, 'test-results', engine);
+fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 const { cards } = parseCardsMarkdown(fs.readFileSync(path.join(root, 'data/cards.md'), 'utf8'));
 const byId = new Map(cards.map((c) => [c.id, c]));
@@ -336,6 +337,71 @@ await page.waitForSelector('.prompt[data-card]');
 await shot('offline-learn');
 log('オフラインで起動・学習');
 await ctx.setOffline(false);
+
+// ---- 同期: Firebase をまねたサーバーで、端末1で学習した進捗が端末2に届く ----
+const fakeDb = new Map();
+async function newSyncDevice() {
+  // Service Worker 経由だと差し替えが効かないので止める
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ja-JP', serviceWorkers: 'block' });
+  await c.route('**/js/config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: "export const FIREBASE = { apiKey: 'test', projectId: 'test' };\nexport const PUSH_WORKER_URL = '';" }));
+  await c.route('https://identitytoolkit.googleapis.com/**', (r) => {
+    const b = JSON.parse(r.request().postData());
+    return b.password === 'pw'
+      ? r.fulfill({ json: { localId: 'u1', email: b.email, idToken: 'tok', refreshToken: 'ref', expiresIn: '3600' } })
+      : r.fulfill({ status: 400, json: { error: { message: 'INVALID_LOGIN_CREDENTIALS' } } });
+  });
+  await c.route('https://firestore.googleapis.com/**', (r) => {
+    if (r.request().url().endsWith(':commit')) {
+      for (const w of JSON.parse(r.request().postData()).writes) fakeDb.set(w.update.name.split('/').pop(), w.update.fields);
+      return r.fulfill({ json: {} });
+    }
+    return r.fulfill({ json: { documents: [...fakeDb].map(([k, fields]) => ({ name: `x/users/u1/data/${k}`, fields })) } });
+  });
+  const p = await c.newPage();
+  p.on('pageerror', (e) => errors.push(e.message));
+  await p.goto(base);
+  await p.waitForSelector('.ltile');
+  return { c, p };
+}
+async function login(p, password) {
+  await p.getByRole('button', { name: '設定' }).click();
+  await p.getByLabel('メールアドレス').fill('me@example.com');
+  await p.getByLabel('パスワード').fill(password);
+  await p.getByRole('button', { name: 'ログイン', exact: true }).click();
+}
+{
+  const d1 = await newSyncDevice();
+  await login(d1.p, 'wrong');
+  await d1.p.getByText('メールアドレスかパスワードが違います').waitFor();
+  await d1.p.getByLabel('メールアドレス').scrollIntoViewIfNeeded();
+  await d1.p.screenshot({ path: path.join(outDir, `${String(++n).padStart(2, '0')}-sync-login-error.png`) });
+  await d1.p.getByLabel('パスワード').fill('pw');
+  await d1.p.getByRole('button', { name: 'ログイン', exact: true }).click();
+  await d1.p.getByText('ログインして同期しました').waitFor();
+  await d1.p.getByText('ログイン中').scrollIntoViewIfNeeded();
+  await d1.p.waitForTimeout(300);
+  await d1.p.screenshot({ path: path.join(outDir, `${String(++n).padStart(2, '0')}-sync-logged-in.png`) });
+  await d1.p.getByRole('button', { name: '戻る' }).click();
+  await d1.p.getByRole('button', { name: /^学習/ }).click();
+  const id = await d1.p.locator('.prompt[data-card]').getAttribute('data-card');
+  await d1.p.locator(`.choice[data-card="${id}"]`).click();
+  await d1.p.getByRole('button', { name: '閉じる' }).click();
+  await d1.p.getByRole('button', { name: '設定' }).click();
+  await d1.p.getByRole('button', { name: '今すぐ同期' }).click();
+  await d1.p.getByText(/最終同期/).waitFor();
+  assert.ok(fakeDb.has('progress'), '進捗が送られていない');
+
+  const d2 = await newSyncDevice();
+  assert.equal(await d2.p.locator('.stats b').nth(1).textContent(), '0');
+  await login(d2.p, 'pw');
+  await d2.p.getByText('ログインして同期しました').waitFor();
+  await d2.p.getByRole('button', { name: '戻る' }).click();
+  assert.equal(await d2.p.locator('.stats b').nth(1).textContent(), '1', '端末2に学習中の1枚が届いていない');
+  await d2.p.screenshot({ path: path.join(outDir, `${String(++n).padStart(2, '0')}-sync-device2-home.png`) });
+  log('同期: 端末1の学習が端末2に届く');
+  await d1.c.close();
+  await d2.c.close();
+}
 
 await browser.close();
 server.close();

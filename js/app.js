@@ -1,5 +1,6 @@
 import { state, loadState } from './state.js';
-import { register, go } from './router.js';
+import { register, go, currentScreen, rerender } from './router.js';
+import { initSync } from './sync.js';
 import { homeScreen } from './screens/home.js';
 import { learnScreen } from './screens/learn.js';
 import { flashScreen } from './screens/flash.js';
@@ -43,6 +44,13 @@ async function main() {
   applyTheme();
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   go('home');
+  // 別の端末の変更が届いたら、ホームにいるときだけ表示を更新する（出題中の画面は入れ替えない）
+  initSync({
+    onRemoteApplied: (keys) => {
+      if (keys.includes('settings')) applyTheme();
+      if (currentScreen().name === 'home') rerender();
+    },
+  });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }

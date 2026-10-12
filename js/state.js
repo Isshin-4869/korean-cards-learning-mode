@@ -5,7 +5,7 @@ import { Store } from './store.js';
 import { parseCardsMarkdown, lessonsOf, TYPES } from './cards.js';
 import { Deck, rangeKey } from './deck.js';
 
-export const APP_VERSION = '1.0.1';
+export const APP_VERSION = '1.0.2';
 export const BACKUP_FORMAT = 'korean-cards-backup';
 
 export const DEFAULT_SETTINGS = {
@@ -32,7 +32,34 @@ export const state = {
   accepted: {}, // 「正解にする」で覚えた答え: cardId → { ko: [...], ja: [...] }
   sessions: {}, // mode → 途中経過
   cardsSource: 'bundled',
+  // 同期用: キーごとの最終更新時刻と、進捗をリセットした時刻（端末内だけに保存）
+  syncMeta: { updated: {}, resetAt: 0 },
 };
+
+// クラウドと同期するキー（途中経過のセッションは端末内だけ）
+export const SYNC_KEYS = ['settings', 'selection', 'progress', 'flash', 'matchBest', 'accepted'];
+
+const changeListeners = new Set();
+export const onChange = (fn) => changeListeners.add(fn);
+
+function touch(key) {
+  state.syncMeta.updated[key] = Date.now();
+  Store.set('syncMeta', state.syncMeta);
+  for (const fn of changeListeners) fn(key);
+}
+
+// 同期で受け取った値を反映する（変更通知は出さない）
+export async function applySynced(key, value, updatedAt) {
+  state[key] = key === 'settings' ? { ...DEFAULT_SETTINGS, ...value } : value;
+  state.syncMeta.updated[key] = updatedAt;
+  await Store.set(key, state[key]);
+  await Store.set('syncMeta', state.syncMeta);
+}
+
+export async function setResetAt(t) {
+  state.syncMeta.resetAt = t;
+  await Store.set('syncMeta', state.syncMeta);
+}
 
 export async function loadCards() {
   const custom = await Store.get('cardsMd');
@@ -58,6 +85,7 @@ export async function loadState() {
   state.flash = flash ?? {};
   state.matchBest = matchBest ?? {};
   state.accepted = accepted ?? {};
+  state.syncMeta = { updated: {}, resetAt: 0, ...((await Store.get('syncMeta')) ?? {}) };
   for (const m of ['learn', 'flash', 'test', 'spell']) state.sessions[m] = (await Store.get('session:' + m)) ?? null;
   await loadCards();
   // データ更新で消えた課を選択から外す
@@ -65,14 +93,10 @@ export async function loadState() {
   if (!state.selection.lessons.length && state.lessons.length) state.selection.lessons = [state.lessons[0]];
 }
 
-export const save = {
-  settings: () => Store.set('settings', state.settings),
-  selection: () => Store.set('selection', state.selection),
-  progress: () => Store.set('progress', state.progress),
-  flash: () => Store.set('flash', state.flash),
-  matchBest: () => Store.set('matchBest', state.matchBest),
-  accepted: () => Store.set('accepted', state.accepted),
-};
+export const save = Object.fromEntries(SYNC_KEYS.map((k) => [k, () => {
+  touch(k);
+  return Store.set(k, state[k]);
+}]));
 
 export function saveSession(mode, data) {
   state.sessions[mode] = data;
@@ -117,7 +141,10 @@ export async function restoreBackup(obj) {
   if (!obj || obj.format !== BACKUP_FORMAT || typeof obj.progress !== 'object') throw new Error('このアプリのバックアップファイルではありません');
   state.settings = { ...DEFAULT_SETTINGS, ...(obj.settings ?? {}) };
   if (obj.selection?.lessons) state.selection = obj.selection;
-  state.progress = obj.progress ?? {};
+  // 復元した内容をクラウドより優先させる: それ以前の記録は捨て、復元した記録には今の時刻を付ける
+  const now = Date.now();
+  await setResetAt(now - 1);
+  state.progress = Object.fromEntries(Object.entries(obj.progress ?? {}).map(([id, r]) => [id, { ...r, u: now }]));
   state.flash = obj.flash ?? {};
   state.matchBest = obj.matchBest ?? {};
   state.accepted = obj.accepted ?? {};
@@ -126,6 +153,7 @@ export async function restoreBackup(obj) {
 }
 
 export async function resetProgress() {
+  await setResetAt(Date.now());
   state.progress = {};
   state.flash = {};
   state.matchBest = {};

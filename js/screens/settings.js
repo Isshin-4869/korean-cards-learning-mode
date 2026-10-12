@@ -3,8 +3,10 @@
 import { h, iconButton } from '../ui.js';
 import { state, save, APP_VERSION, makeBackup, restoreBackup, resetProgress, importCardsMarkdown, useBundledCards } from '../state.js';
 import { speak, speechAvailable, hasKoreanVoice } from '../speech.js';
-import { go, rerender } from '../router.js';
+import { go, rerender, onLeave } from '../router.js';
 import { applyTheme } from '../theme.js';
+import { firebaseConfigured, currentUser, signIn, signOut } from '../firebase.js';
+import { syncNow, syncStatus, onSyncStatus } from '../sync.js';
 
 const DIRECTIONS = { auto: 'おまかせ（4択は韓→日・記述は日→韓）', ko: '韓国語を見て答える', ja: '日本語を見て答える', mix: 'ミックス' };
 let message = '';
@@ -62,6 +64,7 @@ export function settingsScreen() {
         }) : null),
       h('div', { class: 'section-title' }, '表示'),
       h('div', { class: 'list' }, block('テーマ', seg('theme', [['auto', '自動'], ['light', 'ライト'], ['dark', 'ダーク']]))),
+      firebaseConfigured() ? syncSection(action, notify) : null,
       h('div', { class: 'section-title' }, 'データ'),
       h('div', { class: 'list' },
         h('div', { class: 'lrow muted small' }, `カード ${state.cards.length}枚（${state.cardsSource === 'custom' ? '読み込んだデータ' : '同梱のデータ'}）`),
@@ -93,6 +96,61 @@ export function settingsScreen() {
         }, true)),
       h('p', { class: 'muted small', style: 'margin:24px 0' }, `韓国語カード ${APP_VERSION}`)));
   return el;
+}
+
+// 同期（Firebase）: ログインすると、進捗と設定をほかの端末と共有する
+function syncSection(action, notify) {
+  const user = currentUser();
+  if (!user) {
+    const field = (type, autocomplete, label) => h('input', { class: 'field', type, autocomplete, placeholder: label, 'aria-label': label, style: 'margin-top:8px' });
+    const email = field('email', 'username', 'メールアドレス');
+    const password = field('password', 'current-password', 'パスワード');
+    const err = h('div', { class: 'small', style: 'color:var(--ng);min-height:1.2em;margin-top:6px', role: 'alert' });
+    const btn = h('button', { class: 'btn primary', style: 'margin-top:8px', onClick: async () => {
+      if (!email.value.trim() || !password.value) {
+        err.textContent = 'メールアドレスとパスワードを入れてください';
+        return;
+      }
+      btn.disabled = true;
+      err.textContent = '';
+      try {
+        await signIn(email.value.trim(), password.value);
+        await syncNow();
+        notify(syncStatus.state === 'error' ? 'ログインしましたが、同期に失敗しました: ' + syncStatus.error : 'ログインして同期しました');
+      } catch (e) {
+        err.textContent = e.message;
+        btn.disabled = false;
+      }
+    } }, 'ログイン');
+    password.addEventListener('keydown', (e) => e.key === 'Enter' && !e.isComposing && btn.click());
+    return [
+      h('div', { class: 'section-title' }, '同期'),
+      h('p', { class: 'muted small', style: 'margin:0' }, 'ログインすると、進捗と設定をほかの端末と共有し、クラウドにも保存します。'),
+      email, password, err, btn,
+    ];
+  }
+  const time = (t) => new Date(t).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  const statusText = () => ({
+    syncing: '同期中…',
+    offline: 'オフライン（つながったら同期します）',
+    error: '同期できませんでした: ' + syncStatus.error,
+    idle: syncStatus.last ? '最終同期 ' + time(syncStatus.last) : '待機中',
+    off: '同期していません',
+  })[syncStatus.state] ?? '';
+  const status = h('div', { class: 'lrow muted small', role: 'status' }, statusText());
+  onLeave(onSyncStatus(() => (status.textContent = statusText())));
+  return [
+    h('div', { class: 'section-title' }, '同期'),
+    h('div', { class: 'list' },
+      h('div', { class: 'lrow' }, h('span', { class: 'grow' }, 'ログイン中'), h('span', { class: 'muted small' }, user.email)),
+      status,
+      action('今すぐ同期', () => syncNow()),
+      action('ログアウト', async () => {
+        if (!confirm('ログアウトしますか？この端末のデータは残ります。')) return;
+        await signOut();
+        notify('ログアウトしました');
+      })),
+  ];
 }
 
 async function exportBackup() {

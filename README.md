@@ -133,7 +133,25 @@ npm run e2e
 | `tests/` | ユニットテストと E2E |
 | `design-options.html` | 最初のレイアウト5案（比較用。アプリでは使わない） |
 
+## 同期（Firebase）
+
+設定 → 同期 でメールアドレスとパスワードでログインすると、進捗と設定を Firestore に保存し、ほかの端末と共有します。
+
+- **保存の主は端末内（IndexedDB）：** オフラインでも今までどおり動き、電波が戻ると同期します。
+- **同期のタイミング：** 変更の数秒後、アプリを開いたとき、アプリを閉じるとき。
+- **2台で使ったときのまとめ方：**
+  - 進捗はカードごとに新しいほうを残す。
+  - マッチの記録は速いほうを残す。
+  - 設定などは最後に変えたほうを残す。
+  - 「進捗をリセット」「バックアップから復元」はほかの端末にも反映される。
+- **使っている Firebase の機能：** Authentication（メール / パスワード）と Firestore。SDK は使わず REST API で呼んでいる（`js/firebase.js`）。
+- **データの置き場所：** `users/{uid}/data/{key}`。ルールで本人だけが読み書きできる。
+- **設定値：** `js/config.js` の `FIREBASE`。
+  - `apiKey` は公開して使う前提の値で、データはセキュリティルールで守る。
+  - GitHub から「API キーが公開されている」という通知が来ることがあるが、Firebase の Web 用キーなので問題ない。
+  - 気になる場合は、Google Cloud コンソールでキーの利用元を `https://isshin-4869.github.io/*` に制限する。
+- **アカウント：** Firebase コンソールの Authentication で作る。新規登録はオフにしてあるので、アプリからは作れない。
+
 ## このあと追加する予定のもの
 
-- **Firebase（Firestore）同期：** `js/store.js` の `setBackend()` に、`get / set / delete` を持つ Firestore 版を渡して差し替えます。
 - **Web Push 通知：** Cloudflare Workers から送ります。`sw.js` に `push` イベントを追加します。
