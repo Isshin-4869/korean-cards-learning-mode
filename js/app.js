@@ -1,7 +1,9 @@
-import { state, loadState } from './state.js';
+import { state, loadState, onChange } from './state.js';
 import { register, go, currentScreen, rerender } from './router.js';
 import { initSync } from './sync.js';
 import { watchUpdates, onUpdateReady } from './update.js';
+import { reportActivity } from './push.js';
+import { initWidget, scheduleSummary, updateBadge } from './widget.js';
 import { homeScreen } from './screens/home.js';
 import { learnScreen } from './screens/learn.js';
 import { flashScreen } from './screens/flash.js';
@@ -49,9 +51,15 @@ async function main() {
   initSync({
     onRemoteApplied: (keys) => {
       if (keys.includes('settings')) applyTheme();
+      updateBadge();
+      scheduleSummary();
       if (currentScreen().name === 'home') rerender();
     },
   });
+  // 学習したら、その日のリマインダーを止めるよう通知サーバーに知らせる（1日1回）
+  onChange((key) => key === 'progress' && reportActivity());
+  // アイコンのバッジとウィジェット用の要約
+  initWidget();
   onUpdateReady(() => currentScreen().name === 'home' && rerender());
   watchUpdates();
 }

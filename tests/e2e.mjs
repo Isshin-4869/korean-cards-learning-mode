@@ -356,7 +356,7 @@ const fakeDb = new Map();
 async function newSyncDevice() {
   // Service Worker 経由だと差し替えが効かないので止める
   const c = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ja-JP', serviceWorkers: 'block' });
-  await c.route('**/js/config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: "export const FIREBASE = { apiKey: 'test', projectId: 'test' };\nexport const PUSH_WORKER_URL = '';" }));
+  await c.route('**/js/config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: "export const FIREBASE = { apiKey: 'test', projectId: 'test' };\nexport const PUSH = { workerUrl: '', vapidPublicKey: '' };" }));
   await c.route('https://identitytoolkit.googleapis.com/**', (r) => {
     const b = JSON.parse(r.request().postData());
     return b.password === 'pw'

@@ -1,9 +1,10 @@
 import { h, iconButton, progressBar } from '../ui.js';
 import { state, save, cardsInRange, currentRangeKey, rangeLabel } from '../state.js';
 import { TYPES } from '../cards.js';
-import { summarize, rec, MASTERED } from '../progress.js';
+import { summarize } from '../progress.js';
 import { go, rerender } from '../router.js';
 import { updateReady } from '../update.js';
+import { STAGES, stageOfSummary, planetCanvas, rangePlanetName, rng } from '../planet.js';
 
 let rangeMode = false;
 let anchor = null;
@@ -28,13 +29,15 @@ export function homeScreen() {
   const tiles = h('div', { class: 'lgrid' }, state.lessons.map((l) => {
     const cs = state.cards.filter((c) => c.lesson === l && sel.types.includes(c.ftype));
     const all = cs.length ? cs : state.cards.filter((c) => c.lesson === l);
-    const m = all.filter((c) => rec(state.progress, c.id).s === MASTERED).length;
-    const pct = all.length ? Math.round((m / all.length) * 100) : 0;
+    const s = summarize(all, state.progress);
+    // 全部習得するまで 100% と出さない（惑星の「完成」とずれないように切り捨て）
+    const pct = s.total ? Math.floor((s.mastered / s.total) * 100) : 0;
+    const stage = stageOfSummary(s);
     return h('button', {
       class: `ltile${anchor === l ? ' anchor' : ''}`, 'aria-pressed': String(sel.lessons.includes(l)),
-      'aria-label': `${l} 習得${pct}% ${cs.length}枚`,
+      'aria-label': `${l} 習得${pct}% ${cs.length}枚 ${STAGES[stage]}`,
       onClick: () => tapLesson(l),
-    }, h('span', null, l === '会話表現' ? '会話' : l.replace('第', '')), h('span', { class: 'muted small' }, `${pct}%`));
+    }, planetCanvas(l, stage, 28, 16), h('span', null, l === '会話表現' ? '会話' : l.replace('第', '')), h('span', { class: 'muted small dot' }, `${pct}%`));
   }));
 
   function tapLesson(l) {
@@ -64,11 +67,16 @@ export function homeScreen() {
     ? `学習の続き（${Math.min(learnSess.round.pos + 1, learnSess.round.queue.length)}/${learnSess.round.queue.length}）`
     : `学習 · ${pool.length}枚`;
 
-  return h('div', null,
+  const stage = stageOfSummary(sum);
+
+  return h('div', { class: 'home' },
+    stars(),
     h('div', { class: 'scroll' },
       h('div', { class: 'top' }, h('h1', { class: 'grow' }, '韓国語カード'), iconButton('gear', '設定', () => go('settings'))),
       updateReady() ? h('div', { class: 'row', style: 'margin-bottom:8px' }, h('span', { class: 'grow small' }, '新しいバージョンがあります'), h('button', { class: 'btn text', onClick: () => location.reload() }, '更新')) : null,
-      h('div', { class: 'muted small' }, `${rangeLabel()} · ${pool.length}枚`),
+      h('div', { class: 'home-planet' },
+        planetCanvas(rangePlanetName(currentRangeKey()), stage, 150),
+        h('div', { class: 'muted small' }, `${rangeLabel()}の星 · ${STAGES[stage]}`)),
       h('div', { class: 'stats' },
         h('div', null, h('b', { class: 'acc' }, sum.mastered), h('span', { class: 'muted small' }, '習得')),
         h('div', null, h('b', null, sum.learning), h('span', { class: 'muted small' }, '学習中')),
@@ -91,3 +99,11 @@ export function homeScreen() {
         h('button', { class: 'btn', onClick: () => go('spell') }, 'スペル'),
         h('button', { class: 'btn', onClick: () => go('match') }, 'マッチ'))));
 }
+
+// 背景の星。位置は番号だけで決まり、データが変わっても動かない
+const STAR_POS = (() => {
+  const r = rng(3);
+  return Array.from({ length: 40 }, () => [r() * 100, r() * 100, r() < 0.15]);
+})();
+const stars = () => h('div', { class: 'stars', 'aria-hidden': 'true' },
+  STAR_POS.map(([x, y, big]) => h('i', { class: big ? 'b' : null, style: `left:${x.toFixed(2)}%;top:${y.toFixed(2)}%` })));

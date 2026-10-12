@@ -1,7 +1,7 @@
 // Service Worker: アプリ本体とカードデータをキャッシュして、オフラインで起動・学習できるようにする。
 // アプリを更新したら VERSION を上げること（上げないと iPhone に古いファイルが残る）。
 
-const VERSION = 'v1.0.3';
+const VERSION = 'v1.0.4';
 const APP_CACHE = `korean-cards-${VERSION}`;
 const FONT_CACHE = 'korean-cards-fonts';
 
@@ -21,7 +21,9 @@ const APP_FILES = [
   'js/deck.js',
   'js/firebase.js',
   'js/learn.js',
+  'js/planet.js',
   'js/progress.js',
+  'js/push.js',
   'js/quiz.js',
   'js/router.js',
   'js/speech.js',
@@ -31,6 +33,7 @@ const APP_FILES = [
   'js/theme.js',
   'js/ui.js',
   'js/update.js',
+  'js/widget.js',
   'js/screens/common.js',
   'js/screens/flash.js',
   'js/screens/home.js',
@@ -87,5 +90,52 @@ self.addEventListener('fetch', (event) => {
       if (req.mode === 'navigate') return (await cache.match('index.html')) ?? Response.error();
       throw e;
     }
+  })());
+});
+
+// ---- 毎日の復習リマインダー（中身なしの push を受け、文面は端末内の進捗から作る） ----
+function readKv(key) {
+  return new Promise((resolve) => {
+    const req = indexedDB.open('korean-cards', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onerror = () => resolve(undefined);
+    req.onsuccess = () => {
+      try {
+        const get = req.result.transaction('kv', 'readonly').objectStore('kv').get(key);
+        get.onsuccess = () => resolve(get.result);
+        get.onerror = () => resolve(undefined);
+      } catch {
+        resolve(undefined);
+      }
+    };
+  });
+}
+
+async function reminderText() {
+  const progress = (await readKv('progress')) ?? {};
+  const learning = Object.values(progress).filter((r) => r && r.s === 1).length;
+  return learning
+    ? `今日はまだ学習していません。学習中の単語が ${learning} 枚あります`
+    : '今日はまだ学習していません。1ラウンドだけやってみませんか';
+}
+
+self.addEventListener('push', (event) => {
+  // iPhone では push を受けたら必ず通知を出す決まりがある
+  event.waitUntil((async () => {
+    await self.registration.showNotification('韓国語カード', {
+      body: await reminderText(),
+      icon: 'icons/icon-192.png',
+      badge: 'icons/icon-192.png',
+      tag: 'daily-reminder',
+    });
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    if (all.length) return all[0].focus();
+    return self.clients.openWindow('./');
   })());
 });

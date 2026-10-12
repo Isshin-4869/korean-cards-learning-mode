@@ -7,6 +7,10 @@ import { go, rerender, onLeave } from '../router.js';
 import { applyTheme } from '../theme.js';
 import { firebaseConfigured, currentUser, signIn, signOut } from '../firebase.js';
 import { syncNow, syncStatus, onSyncStatus } from '../sync.js';
+import { pushConfigured, pushSupported, isStandalone, loadPushSettings, enablePush, disablePush, setPushHour, sendTestPush } from '../push.js';
+import { widgetConfigured, loadWidgetToken, postSummary, rotateWidgetToken } from '../widget.js';
+
+const WIDGET_HELP = 'https://github.com/Isshin-4869/korean-cards-learning-mode#ウィジェット';
 
 const DIRECTIONS = { auto: 'おまかせ（4択は韓→日・記述は日→韓）', ko: '韓国語を見て答える', ja: '日本語を見て答える', mix: 'ミックス' };
 let message = '';
@@ -65,6 +69,8 @@ export function settingsScreen() {
       h('div', { class: 'section-title' }, '表示'),
       h('div', { class: 'list' }, block('テーマ', seg('theme', [['auto', '自動'], ['light', 'ライト'], ['dark', 'ダーク']]))),
       firebaseConfigured() ? syncSection(action, notify) : null,
+      pushConfigured() ? pushSection(action) : null,
+      widgetConfigured() ? widgetSection(action) : null,
       h('div', { class: 'section-title' }, 'データ'),
       h('div', { class: 'list' },
         h('div', { class: 'lrow muted small' }, `カード ${state.cards.length}枚（${state.cardsSource === 'custom' ? '読み込んだデータ' : '同梱のデータ'}）`),
@@ -150,6 +156,141 @@ function syncSection(action, notify) {
         await signOut();
         notify('ログアウトしました');
       })),
+  ];
+}
+
+// 通知: その日にまだ学習していなければ、決めた時刻に知らせる
+function pushSection(action) {
+  const title = h('div', { class: 'section-title' }, '通知');
+  if (!currentUser()) return [title, h('p', { class: 'muted small', style: 'margin:0' }, '通知を使うには、上の「同期」でログインしてください。')];
+  if (!pushSupported()) {
+    return [title, h('p', { class: 'muted small', style: 'margin:0' }, isStandalone()
+      ? 'この端末では通知を使えません（iPhone は iOS 16.4 以降が必要です）。'
+      : '通知は、ホーム画面に追加したアプリから使えます（iPhone は iOS 16.4 以降）。')];
+  }
+  const msg = h('div', { class: 'lrow muted small', role: 'status' });
+  const say = (t, ng) => {
+    msg.textContent = t;
+    msg.style.color = ng ? 'var(--ng)' : '';
+  };
+  const sw = h('input', { id: 'sw-push', type: 'checkbox', class: 'switch', role: 'switch' });
+  const hour = h('select', { id: 'push-hour', class: 'field' },
+    Array.from({ length: 18 }, (_, i) => i + 6).map((n) => h('option', { value: n }, `${n}:00`)));
+  const test = action('テスト通知を送る', async () => {
+    say('送っています…');
+    try {
+      const r = await sendTestPush();
+      say(r.ok ? '送りました。数秒で届きます' : '送れませんでした（通知をオフにしてから、もう一度オンにしてください）', !r.ok);
+    } catch (e) {
+      say(e.message, true);
+    }
+  });
+  const reflect = (on) => {
+    sw.checked = on;
+    hour.disabled = !on;
+    test.disabled = !on;
+    test.style.opacity = on ? '' : '0.4';
+  };
+  sw.addEventListener('change', async () => {
+    const on = sw.checked;
+    sw.disabled = true;
+    try {
+      // 通知の許可はタップの処理の中で求める必要があるので、待たずにすぐ呼ぶ
+      if (on) await enablePush(Number(hour.value));
+      else await disablePush();
+      reflect(on);
+      say(on ? `毎日 ${hour.value}:00 に、その日まだ学習していなければ知らせます` : '通知をオフにしました');
+    } catch (e) {
+      reflect(!on);
+      say(e.message, true);
+    } finally {
+      sw.disabled = false;
+    }
+  });
+  hour.addEventListener('change', async () => {
+    try {
+      await setPushHour(Number(hour.value));
+      say(`${hour.value}:00 に変えました`);
+    } catch (e) {
+      say(e.message, true);
+    }
+  });
+  loadPushSettings().then((s) => {
+    hour.value = String(s.hour);
+    reflect(s.enabled && Notification.permission === 'granted');
+    if (Notification.permission === 'denied') say('通知が拒否されています。iPhone の設定 → 通知 → 韓国語カード で許可してください', true);
+  });
+  return [
+    title,
+    h('div', { class: 'list' },
+      h('div', { class: 'lrow' },
+        h('label', { class: 'grow', for: 'sw-push' }, h('div', null, '毎日のリマインダー'), h('div', { class: 'muted small' }, 'その日にまだ学習していなければ、決めた時刻に知らせます')),
+        sw),
+      h('div', { class: 'lrow' }, h('label', { class: 'grow', for: 'push-hour' }, '時刻'), hour),
+      test,
+      msg),
+  ];
+}
+
+// ウィジェット（Scriptable）: 範囲の惑星と習得率をホーム画面・ロック画面に出す
+function widgetSection(action) {
+  const title = h('div', { class: 'section-title' }, 'ウィジェット');
+  const badge = h('p', { class: 'muted small', style: 'margin:8px 0 0' }, 'アイコンの数字（学習中の枚数）は、通知を許可すると表示されます');
+  if (!currentUser()) return [title, h('p', { class: 'muted small', style: 'margin:0' }, 'ウィジェットを使うには、上の「同期」でログインしてください。'), badge];
+  const msg = h('div', { class: 'lrow muted small', role: 'status' });
+  const say = (t, ng) => {
+    msg.textContent = t;
+    msg.style.color = ng ? 'var(--ng)' : '';
+  };
+  const body = h('div', { class: 'list' });
+  const help = h('a', { class: 'lrow', href: WIDGET_HELP, target: '_blank', rel: 'noopener', style: 'color:var(--accent);text-decoration:none' }, '設定のしかた（Scriptable）');
+  const fill = (url) => {
+    if (!url) {
+      body.replaceChildren(
+        action('ウィジェットの URL を作る', async () => {
+          say('作っています…');
+          try {
+            fill(await postSummary({ force: true }));
+            say('作りました。この URL を Scriptable のスクリプトに貼ります');
+          } catch (e) {
+            say(e.message, true);
+          }
+        }),
+        help, msg);
+      return;
+    }
+    const field = h('input', { class: 'field', type: 'text', readonly: true, value: url, 'aria-label': 'ウィジェットの URL', style: 'margin-top:8px;font-size:max(16px,1rem)', onFocus: (e) => e.target.select() });
+    const copy = h('button', { class: 'btn', style: 'margin-top:8px', onClick: async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        say('コピーしました');
+      } catch {
+        field.focus();
+        field.select();
+        field.setSelectionRange(0, url.length);
+        say('選択しました。長押しでコピーしてください');
+      }
+    } }, 'コピー');
+    body.replaceChildren(
+      h('div', { style: 'padding:10px 0' }, h('div', null, 'ウィジェットに貼る URL'), field, copy),
+      help,
+      action('URL を作り直す', async () => {
+        if (!confirm('URL を作り直しますか？今の URL を貼ったウィジェットは、新しい URL を貼り直すまで表示されなくなります。')) return;
+        try {
+          fill(await rotateWidgetToken());
+          say('作り直しました。Scriptable の STATS_URL も貼り替えてください');
+        } catch (e) {
+          say(e.message, true);
+        }
+      }),
+      msg);
+  };
+  loadWidgetToken().then(fill, () => fill(null));
+  return [
+    title,
+    h('p', { class: 'muted small', style: 'margin:0 0 8px' }, '無料アプリ「Scriptable」で、選んでいる範囲の惑星と習得率をホーム画面やロック画面に出せます。'),
+    body,
+    badge,
   ];
 }
 

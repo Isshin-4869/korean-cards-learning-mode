@@ -4,7 +4,7 @@
   "type": "module",
   "description": "韓国語暗記 PWA（ビルド工程なし。package.json はテスト用）",
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test tests/*.test.mjs worker/test/*.test.mjs",
     "e2e": "node tests/e2e.mjs",
     "e2e:webkit": "E2E_BROWSER=webkit node tests/e2e.mjs"
   },

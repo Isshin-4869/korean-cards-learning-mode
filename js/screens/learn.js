@@ -5,6 +5,7 @@ import { state, save, saveSession, cardsInRange, currentRangeKey } from '../stat
 import { canWrite } from '../deck.js';
 import { pickRoundCards, pickReviewCards, newRound, applyAnswer, undoAnswer, roundDone, roundSummary, directionFor } from '../learn.js';
 import { summarize } from '../progress.js';
+import { STAGE_UP, stageOfSummary, planetCanvas, rangePlanetName } from '../planet.js';
 import { go } from '../router.js';
 import { judgeWritten, rememberAccepted, writtenFeedback, continueControl, autoSpeak, choiceKeys } from './common.js';
 
@@ -30,7 +31,8 @@ export function learnScreen(params = {}) {
     let picked = pickRoundCards(cards, state.progress, settings.roundSize);
     if (!picked.length && review) picked = pickReviewCards(cards, state.progress, settings.roundSize);
     if (!picked.length) return allDone(cards.length);
-    sess = { scope, round: newRound(picked, state.progress), phase: 'q' };
+    // ラウンド開始時の惑星の段階（まとめで育ったかを見るため。再開しても残るようセッションに持つ）
+    sess = { scope, round: newRound(picked, state.progress), phase: 'q', stageBefore: stageOfSummary(summarize(cards, state.progress)) };
     persist();
     showQuestion();
   }
@@ -131,9 +133,20 @@ export function learnScreen(params = {}) {
     const all = summarize(pool(), state.progress);
     const order = { review: 0, learning: 1, mastered: 2 };
     sum.sort((a, b) => order[a.status] - order[b.status]);
+    // 範囲の惑星: 段階が上がったときだけ「前 → 後」を見せる
+    const planet = scope.range ? rangePlanetName(scope.range) : 'words';
+    const stage = stageOfSummary(all);
+    const grew = sess.stageBefore != null && stage > sess.stageBefore;
+    const pct = all.total ? Math.floor((all.mastered / all.total) * 100) : 0;
+    const after = grew ? planetCanvas(planet, stage, 110) : null;
+    after?.classList.add('grown');
     show(
-      h('div', { class: 'top' }, h('h1', { class: 'grow' }, 'ラウンド完了')),
+      h('div', { class: 'top' }, h('h1', { class: 'grow' }, 'ラウンド完了'), grew ? null : planetCanvas(planet, stage, 40)),
       h('div', { class: 'scroll' },
+        grew ? [
+          h('div', { class: 'grow-up' }, planetCanvas(planet, sess.stageBefore, 88), h('span', { class: 'muted', 'aria-hidden': 'true' }, '→'), after),
+          h('div', { class: 'grow-msg' }, `${STAGE_UP[stage]}（習得 `, h('span', { class: 'dot' }, `${pct}%`), '）'),
+        ] : null,
         h('div', { class: 'list' }, sum.map(({ id, status }) => {
           const c = deck.get(id);
           if (!c) return null;

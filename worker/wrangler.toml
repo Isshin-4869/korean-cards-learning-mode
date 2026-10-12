@@ -1,0 +1,20 @@
+# 復習リマインダー（Web Push）の Worker
+# 秘密鍵は vars に書かない: `wrangler secret put VAPID_PRIVATE_JWK` で JWK の JSON 文字列を登録する
+# 鍵の作り方: node scripts/gen-vapid.mjs（出力はリポジトリに保存しない）
+name = "korean-cards-push"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[triggers]
+crons = ["0 * * * *"]
+
+[vars]
+FIREBASE_PROJECT_ID = "korean-cards-c2e8e"
+ALLOWED_ORIGIN = "https://isshin-4869.github.io"
+VAPID_SUBJECT = "https://isshin-4869.github.io/korean-cards-learning-mode/"
+# gen-vapid.mjs の publicKey（base64url の非圧縮点 65 バイト）。あとで埋める
+VAPID_PUBLIC_KEY = "BMyUn6Y-kIHu4sk7aaX1tn8tYILWb-0c_7R0fEPhDcDSdIkhp0rZqFDdBxlob9d2gtTVu24qSHx2c1MlesIfOIo"
+
+[[kv_namespaces]]
+binding = "SUBS"
+id = "b11f0fc6f77f4d6db2fa34a3b6d68329"

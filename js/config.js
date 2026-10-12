@@ -6,5 +6,8 @@ export const FIREBASE = {
   projectId: 'korean-cards-c2e8e',
 };
 
-// 通知（Cloudflare Workers）の URL。例: https://korean-cards-push.<アカウント>.workers.dev
-export const PUSH_WORKER_URL = '';
+// 通知（Cloudflare Workers）。URL と VAPID 公開鍵の両方がそろうと設定画面に「通知」が出る
+export const PUSH = {
+  workerUrl: 'https://korean-cards-push.isshinryu4869.workers.dev',
+  vapidPublicKey: 'BMyUn6Y-kIHu4sk7aaX1tn8tYILWb-0c_7R0fEPhDcDSdIkhp0rZqFDdBxlob9d2gtTVu24qSHx2c1MlesIfOIo',
+};
