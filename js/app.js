@@ -13,6 +13,7 @@ import { matchScreen } from './screens/match.js';
 import { settingsScreen } from './screens/settings.js';
 import { startScreen } from './screens/start.js';
 import { recordAnswer } from './streak.js';
+import { loadSpeechPrefs } from './speech.js';
 import { applyTheme } from './theme.js';
 
 register('home', homeScreen);
@@ -43,6 +44,7 @@ async function main() {
   trackViewport();
   try {
     await loadState();
+    await loadSpeechPrefs();
   } catch (e) {
     document.getElementById('app').textContent = 'データを読み込めませんでした: ' + e.message;
     throw e;

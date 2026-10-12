@@ -10,7 +10,7 @@ import { go } from '../router.js';
 import { judgeWritten, rememberAccepted, writtenFeedback, continueControl } from './common.js';
 
 const PER_SESSION = 10;
-const SLOW = 0.6;
+const SLOW = 0.7; // 設定の速さに掛ける倍率
 
 export function spellScreen() {
   const deck = state.deck;

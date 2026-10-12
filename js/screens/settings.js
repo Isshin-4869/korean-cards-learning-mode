@@ -2,7 +2,7 @@
 
 import { h, iconButton } from '../ui.js';
 import { state, save, APP_VERSION, makeBackup, restoreBackup, resetProgress, importCardsMarkdown, useBundledCards } from '../state.js';
-import { speak, speechAvailable, hasKoreanVoice } from '../speech.js';
+import { speak, speechAvailable, hasKoreanVoice, koreanVoices, voiceQuality, QUALITY_LABEL, RATES, speechPrefs, setSpeechPrefs } from '../speech.js';
 import { go, rerender, onLeave } from '../router.js';
 import { applyTheme } from '../theme.js';
 import { firebaseConfigured, currentUser, signIn, signOut } from '../firebase.js';
@@ -55,8 +55,7 @@ export function settingsScreen() {
       h('div', { class: 'section-title' }, '読み上げ'),
       h('div', { class: 'list' },
         toggle('autoSpeak', '自動読み上げ', '韓国語が出たとき・答えが韓国語のときに読み上げる'),
-        action('読み上げを試す（안녕하세요）', () => speak('안녕하세요')),
-        !speechAvailable() ? h('div', { class: 'lrow muted small' }, 'この端末では読み上げが使えません') : !hasKoreanVoice() ? h('div', { class: 'lrow muted small' }, '韓国語の音声が見つかりません。iPhone の設定 → アクセシビリティ → 読み上げコンテンツ → 声 で韓国語を追加してください') : null),
+        ...voiceRows(rerender)),
       h('div', { class: 'section-title' }, '答え合わせ（記述・スペル）'),
       h('div', { class: 'list' },
         toggle('allowTypo', '1文字ミスを許容', '語ごとに字母1つ（長い語は2つ）までの打ち間違いを正解にする。別の単語になる打ち間違いは不正解'),
@@ -292,6 +291,29 @@ function widgetSection(action) {
     h('p', { class: 'muted small', style: 'margin:0 0 8px' }, '無料アプリ「Scriptable」で、選んでいる範囲の惑星と習得率をホーム画面やロック画面に出せます。'),
     body,
     badge,
+  ];
+}
+
+// 読み上げの声と速さ（端末ごとに保存）。iPhone の設定で追加した「拡張」「プレミアム」の声ほど自然
+const SAMPLE = '안녕하세요. 만나서 반갑습니다.';
+function voiceRows(refresh) {
+  if (!speechAvailable()) return [h('div', { class: 'lrow muted small' }, 'この端末では読み上げが使えません')];
+  const how = 'iPhone の設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 韓国語 で「Yuna（拡張）」や「（プレミアム）」をダウンロードし、このアプリを開き直すと選べるようになります。';
+  if (!hasKoreanVoice()) return [h('div', { class: 'lrow muted small' }, '韓国語の声が見つかりません。' + how)];
+  const p = speechPrefs();
+  const vs = koreanVoices();
+  const best = Math.max(...vs.map(voiceQuality));
+  return [
+    h('div', { style: 'padding:10px 0' }, h('label', { for: 'voice' }, '声'),
+      h('select', { id: 'voice', class: 'field', style: 'display:block;width:100%;margin-top:8px', onChange: async (e) => { await setSpeechPrefs({ voiceURI: e.target.value }); speak(SAMPLE); } },
+        vs.map((v) => { const q = QUALITY_LABEL[voiceQuality(v)]; return h('option', { value: v.voiceURI, selected: v.voiceURI === p.voiceURI ? '' : null }, `${v.name}${q && !v.name.includes(q) ? `（${q}）` : ''}`); }))),
+    h('div', { style: 'padding:10px 0' }, h('div', null, '速さ'),
+      h('div', { class: 'seg-ctl', style: 'margin-top:8px' }, RATES.map(([r, label]) => h('button', {
+        class: 'btn', 'aria-pressed': String(Math.abs(p.rate - r) < 0.01),
+        onClick: async () => { await setSpeechPrefs({ rate: r }); refresh(); speak(SAMPLE); },
+      }, label)))),
+    h('button', { class: 'lrow btn text', style: 'width:100%;text-align:left;padding:0;border-radius:0', onClick: () => speak(SAMPLE) }, `試す（${SAMPLE}）`),
+    best < 2 ? h('div', { class: 'lrow muted small' }, 'もっと自然な声にするには：' + how) : null,
   ];
 }
 
