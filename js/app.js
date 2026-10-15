@@ -12,6 +12,7 @@ import { spellScreen } from './screens/spell.js';
 import { matchScreen } from './screens/match.js';
 import { settingsScreen } from './screens/settings.js';
 import { startScreen } from './screens/start.js';
+import { searchScreen } from './screens/search.js';
 import { recordAnswer } from './streak.js';
 import { loadSpeechPrefs } from './speech.js';
 import { applyTheme } from './theme.js';
@@ -24,6 +25,7 @@ register('spell', spellScreen);
 register('match', matchScreen);
 register('settings', settingsScreen);
 register('start', startScreen);
+register('search', searchScreen);
 
 // キーボードが出ても入力欄と回答ボタンが隠れないよう、表示領域の高さに合わせる
 function trackViewport() {

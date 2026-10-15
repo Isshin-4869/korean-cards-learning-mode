@@ -1,7 +1,7 @@
 // Service Worker: アプリ本体とカードデータをキャッシュして、オフラインで起動・学習できるようにする。
 // アプリを更新したら VERSION を上げること（上げないと iPhone に古いファイルが残る）。
 
-const VERSION = 'v1.0.7';
+const VERSION = 'v1.0.8';
 const APP_CACHE = `korean-cards-${VERSION}`;
 const FONT_CACHE = 'korean-cards-fonts';
 
@@ -26,6 +26,7 @@ const APP_FILES = [
   'js/push.js',
   'js/quiz.js',
   'js/review.js',
+  'js/search.js',
   'js/router.js',
   'js/speech.js',
   'js/state.js',
@@ -40,6 +41,7 @@ const APP_FILES = [
   'js/screens/flash.js',
   'js/screens/home.js',
   'js/screens/learn.js',
+  'js/screens/search.js',
   'js/screens/match.js',
   'js/screens/settings.js',
   'js/screens/spell.js',

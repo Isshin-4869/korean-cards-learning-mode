@@ -70,7 +70,7 @@ export function homeScreen() {
   const mode = (name, label) => h('button', { class: 'btn', onClick: () => go('start', { mode: name }) }, label);
   return h('div', null,
     h('div', { class: 'scroll' },
-      h('div', { class: 'top' }, h('h1', { class: 'grow' }, '韓国語カード'), iconButton('gear', '設定', () => go('settings'))),
+      h('div', { class: 'top' }, h('h1', { class: 'grow' }, '韓国語カード'), iconButton('search', '検索', () => go('search')), iconButton('gear', '設定', () => go('settings'))),
       updateReady() ? h('div', { class: 'row', style: 'margin-bottom:8px' }, h('span', { class: 'grow small' }, '新しいバージョンがあります'), h('button', { class: 'btn text', onClick: () => location.reload() }, '更新')) : null,
       streakCard(),
       forecastCard(),

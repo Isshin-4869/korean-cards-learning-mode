@@ -98,6 +98,17 @@ assert.match(await page.locator(HOME).textContent(), /^0 日連続/);
 await shot('home');
 log('表紙表示');
 
+// ---- 検索 ----
+await page.getByRole('button', { name: '検索' }).click();
+await page.getByLabel('単語を検索').fill('待つ');
+await page.getByText('기다리다').first().waitFor();
+await shot('search');
+await page.getByLabel('単語を検索').fill('학교옆에');
+await page.getByText('학교 옆에 카페가 있어요.').first().waitFor();
+await page.getByRole('button', { name: '戻る' }).click();
+await page.waitForSelector(HOME);
+log('検索');
+
 // ---- 学習 ----
 await page.getByRole('button', { name: '学習する', exact: true }).click();
 await page.waitForSelector('.rings');
