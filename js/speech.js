@@ -13,8 +13,9 @@ let prefs = { voiceURI: '', rate: 0.9 };
 export const RATES = [[0.75, 'ゆっくり'], [0.9, 'ふつう'], [1.05, 'はやめ']];
 
 // 自然に聞こえる順: プレミアム ＞ 拡張 ＞ ふつう。iPhone の「設定」で追加した声がここに並ぶ
+// iPhone では高音質版も名前は「Yuna」のままで、違いは voiceURI（com.apple.voice.enhanced… など）にしか出ないことがある
 export function voiceQuality(v) {
-  const n = v.name;
+  const n = `${v.name} ${v.voiceURI ?? ''}`;
   if (/premium|プレミアム|고급/i.test(n)) return 3;
   if (/enhanced|拡張|향상/i.test(n)) return 2;
   if (/compact|簡易/i.test(n)) return 0;

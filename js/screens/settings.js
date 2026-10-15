@@ -306,7 +306,10 @@ function voiceRows(refresh) {
   return [
     h('div', { style: 'padding:10px 0' }, h('label', { for: 'voice' }, '声'),
       h('select', { id: 'voice', class: 'field', style: 'display:block;width:100%;margin-top:8px', onChange: async (e) => { await setSpeechPrefs({ voiceURI: e.target.value }); speak(SAMPLE); } },
-        vs.map((v) => { const q = QUALITY_LABEL[voiceQuality(v)]; return h('option', { value: v.voiceURI, selected: v.voiceURI === p.voiceURI ? '' : null }, `${v.name}${q && !v.name.includes(q) ? `（${q}）` : ''}`); }))),
+        vs.map((v) => { const q = QUALITY_LABEL[voiceQuality(v)]; return h('option', { value: v.voiceURI, selected: v.voiceURI === p.voiceURI ? '' : null }, `${v.name}${q && !v.name.includes(q) ? `（${q}）` : ''}`); })),
+      // この端末でアプリから見えている声（ダウンロードした声が出てこないときの確認用）
+      h('details', { style: 'margin-top:8px' }, h('summary', { class: 'small muted', style: 'min-height:44px;display:flex;align-items:center;cursor:pointer' }, `この端末で使える韓国語の声（${vs.length}）`),
+        h('div', { class: 'small muted', style: 'overflow-wrap:anywhere' }, vs.map((v) => h('div', null, `${v.name} — ${v.voiceURI}`))))),
     h('div', { style: 'padding:10px 0' }, h('div', null, '速さ'),
       h('div', { class: 'seg-ctl', style: 'margin-top:8px' }, RATES.map(([r, label]) => h('button', {
         class: 'btn', 'aria-pressed': String(Math.abs(p.rate - r) < 0.01),

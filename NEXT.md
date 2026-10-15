@@ -1,6 +1,6 @@
 # 再開メモ
 
-## 公開中（v1.0.6）
+## 公開中（v1.0.7）
 - **アプリ：** https://isshin-4869.github.io/korean-cards-learning-mode/
   - リポジトリ：https://github.com/Isshin-4869/korean-cards-learning-mode
 - **デザイン：** シンプル（生成り＋青）。惑星とドット書体は外した
