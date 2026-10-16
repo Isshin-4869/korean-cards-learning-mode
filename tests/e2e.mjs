@@ -69,6 +69,9 @@ const promptIsKo = async () => (await page.locator('.prompt .q').first().getAttr
 const answerFor = (card, promptKo) => stripNotes(promptKo ? card.definition : card.term).split(/\s*[\/／]\s*/)[0];
 
 const HOME = '.streak-num';
+// 収録音声を読み込んだ回数（読み上げが audio/*.m4a を使っているか）
+let audioRequests = 0;
+page.on('request', (r) => { if (/\/audio\/v[0-9a-z]+\.m4a$/.test(r.url())) audioRequests++; });
 const T0 = Date.now();
 // 時刻を固定して進められるようにする（今日の復習を試すため。タイマーは止めない）
 await page.clock.setFixedTime(T0);
@@ -175,7 +178,8 @@ async function learnUntilSummary(maxSteps = 40) {
 }
 await learnUntilSummary();
 await shot('learn-summary');
-log('学習ラウンド1完了', seen);
+log('学習ラウンド1完了', seen, '収録音声の読み込み', audioRequests);
+assert.ok(audioRequests > 0, '収録音声を読み込んでいない');
 await btn('次のラウンドへ').click();
 await learnUntilSummary();
 await shot('learn-summary-2');

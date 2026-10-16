@@ -1,6 +1,6 @@
 # 再開メモ
 
-## 公開中（v1.0.8）
+## 公開中（v1.0.9）
 - **アプリ：** https://isshin-4869.github.io/korean-cards-learning-mode/
   - リポジトリ：https://github.com/Isshin-4869/korean-cards-learning-mode
 - **デザイン：** シンプル（生成り＋青）。惑星とドット書体は外した
@@ -13,6 +13,7 @@
   - 毎時0分に cron で動く
 - **アイコンのバッジ：** 今日の復習の残り枚数。`js/widget.js` の `badgeCount` / `updateBadge`
 - **Scriptable ウィジェット：** `widget/scriptable-widget.js`
+- **読み上げ：** Mac の Yuna（プレミアム）で作った収録音声（`audio/`、`tools/make-audio.mjs`）。カードデータを変えたら作り直す
 
 ## 秘密情報の置き場所（リポジトリには入れない）
 - `~/.config/korean-cards/cloudflare-token`：Cloudflare の API トークン（Workers の編集のみ）

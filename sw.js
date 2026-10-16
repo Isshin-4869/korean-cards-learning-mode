@@ -1,20 +1,24 @@
 // Service Worker: アプリ本体とカードデータをキャッシュして、オフラインで起動・学習できるようにする。
 // アプリを更新したら VERSION を上げること（上げないと iPhone に古いファイルが残る）。
 
-const VERSION = 'v1.0.8';
+const VERSION = 'v1.0.9';
 const APP_CACHE = `korean-cards-${VERSION}`;
 const FONT_CACHE = 'korean-cards-fonts';
+// 収録音声（audio/*.m4a）。アプリを更新しても消さない（25MB ほどあるので、取り直しを避ける）
+const AUDIO_CACHE = 'korean-cards-audio';
 
 const APP_FILES = [
   './',
   'index.html',
   'manifest.webmanifest',
   'css/app.css',
+  'audio/manifest.json',
   'data/cards.md',
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'js/app.js',
+  'js/audio-key.js',
   'js/answer.js',
   'js/cards.js',
   'js/config.js',
@@ -57,7 +61,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     for (const key of await caches.keys()) {
-      if (key !== APP_CACHE && key !== FONT_CACHE) await caches.delete(key);
+      if (key !== APP_CACHE && key !== FONT_CACHE && key !== AUDIO_CACHE) await caches.delete(key);
     }
     await self.clients.claim();
   })());
@@ -83,6 +87,19 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.origin !== location.origin) return;
+
+  // 収録音声: 一度聞いたものは端末に保存して、次からはオフラインでも鳴らせる
+  if (url.pathname.includes('/audio/') && url.pathname.endsWith('.m4a')) {
+    event.respondWith((async () => {
+      const cache = await caches.open(AUDIO_CACHE);
+      const hit = await cache.match(req, { ignoreSearch: true });
+      if (hit) return hit;
+      const res = await fetch(req);
+      if (res.ok) cache.put(req, res.clone());
+      return res;
+    })());
+    return;
+  }
 
   // アプリ本体: キャッシュ優先（オフラインで動く）
   event.respondWith((async () => {

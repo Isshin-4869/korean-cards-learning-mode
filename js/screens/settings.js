@@ -2,7 +2,7 @@
 
 import { h, iconButton } from '../ui.js';
 import { state, save, APP_VERSION, makeBackup, restoreBackup, resetProgress, importCardsMarkdown, useBundledCards } from '../state.js';
-import { speak, speechAvailable, hasKoreanVoice, koreanVoices, voiceQuality, QUALITY_LABEL, RATES, speechPrefs, setSpeechPrefs } from '../speech.js';
+import { speak, speechAvailable, hasKoreanVoice, koreanVoices, voiceQuality, QUALITY_LABEL, RATES, speechPrefs, setSpeechPrefs, hasRecorded, usingRecorded, recordedKeys, cachedCount, downloadAllAudio, RECORDED_LABEL } from '../speech.js';
 import { go, rerender, onLeave } from '../router.js';
 import { applyTheme } from '../theme.js';
 import { firebaseConfigured, currentUser, signIn, signOut } from '../firebase.js';
@@ -298,15 +298,37 @@ function widgetSection(action) {
 const SAMPLE = '안녕하세요. 만나서 반갑습니다.';
 function voiceRows(refresh) {
   if (!speechAvailable()) return [h('div', { class: 'lrow muted small' }, 'この端末では読み上げが使えません')];
-  const how = 'iPhone の設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 韓国語 で「Yuna（拡張）」や「（プレミアム）」をダウンロードし、このアプリを開き直すと選べるようになります。';
-  if (!hasKoreanVoice()) return [h('div', { class: 'lrow muted small' }, '韓国語の声が見つかりません。' + how)];
   const p = speechPrefs();
   const vs = koreanVoices();
-  const best = Math.max(...vs.map(voiceQuality));
+  const rec = hasRecorded();
+  if (!rec && !hasKoreanVoice()) return [h('div', { class: 'lrow muted small' }, '韓国語の声が見つかりません')];
+  const RECORDED = '__recorded__';
+  const current = usingRecorded() ? RECORDED : p.voiceURI;
+  // 収録音声をまとめて端末に保存（オフラインでも聞けるように）
+  const saveInfo = h('span', { class: 'muted small' });
+  const total = recordedKeys().length;
+  cachedCount().then((n) => { saveInfo.textContent = n >= total ? '保存済み' : `${Math.min(n, total)} / ${total}`; });
+  const saveBtn = h('button', { class: 'lrow btn text', style: 'width:100%;text-align:left;padding:0;border-radius:0', onClick: async () => {
+    saveBtn.disabled = true;
+    try {
+      await downloadAllAudio((done, all) => { saveInfo.textContent = `${done} / ${all}`; });
+      saveInfo.textContent = '保存済み';
+    } catch {
+      saveInfo.textContent = '途中で止まりました（電波のある所でもう一度）';
+    } finally {
+      saveBtn.disabled = false;
+    }
+  } }, h('span', { class: 'grow' }, '音声をまとめて保存（約25MB）'), saveInfo);
   return [
     h('div', { style: 'padding:10px 0' }, h('label', { for: 'voice' }, '声'),
-      h('select', { id: 'voice', class: 'field', style: 'display:block;width:100%;margin-top:8px', onChange: async (e) => { await setSpeechPrefs({ voiceURI: e.target.value }); speak(SAMPLE); } },
-        vs.map((v) => { const q = QUALITY_LABEL[voiceQuality(v)]; return h('option', { value: v.voiceURI, selected: v.voiceURI === p.voiceURI ? '' : null }, `${v.name}${q && !v.name.includes(q) ? `（${q}）` : ''}`); })),
+      h('select', { id: 'voice', class: 'field', style: 'display:block;width:100%;margin-top:8px', onChange: async (e) => {
+        const v = e.target.value;
+        await setSpeechPrefs(v === RECORDED ? { source: 'recorded' } : { source: 'system', voiceURI: v });
+        speak(SAMPLE);
+      } },
+        rec ? h('option', { value: RECORDED, selected: current === RECORDED ? '' : null }, RECORDED_LABEL) : null,
+        vs.map((v) => { const q = QUALITY_LABEL[voiceQuality(v)]; return h('option', { value: v.voiceURI, selected: v.voiceURI === current ? '' : null }, `${v.name}${q && !v.name.includes(q) ? `（${q}）` : ''}（端末の声）`); })),
+      h('div', { class: 'muted small', style: 'margin-top:6px' }, rec ? '収録音声は Mac の Yuna（プレミアム）で作った音声です。ないときは端末の声で読みます。' : ''),
       // この端末でアプリから見えている声（ダウンロードした声が出てこないときの確認用）
       h('details', { style: 'margin-top:8px' }, h('summary', { class: 'small muted', style: 'min-height:44px;display:flex;align-items:center;cursor:pointer' }, `この端末で使える韓国語の声（${vs.length}）`),
         h('div', { class: 'small muted', style: 'overflow-wrap:anywhere' }, vs.map((v) => h('div', null, `${v.name} — ${v.voiceURI}`))))),
@@ -316,7 +338,7 @@ function voiceRows(refresh) {
         onClick: async () => { await setSpeechPrefs({ rate: r }); refresh(); speak(SAMPLE); },
       }, label)))),
     h('button', { class: 'lrow btn text', style: 'width:100%;text-align:left;padding:0;border-radius:0', onClick: () => speak(SAMPLE) }, `試す（${SAMPLE}）`),
-    best < 2 ? h('div', { class: 'lrow muted small' }, 'もっと自然な声にするには：' + how) : null,
+    rec && typeof caches !== 'undefined' ? saveBtn : null,
   ];
 }
 
